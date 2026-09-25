@@ -148,20 +148,6 @@ class Packer:
         return self.parts
 
     # ---- packing ----------------------------------------------------------
-    def _fits(self, free, col, x, z, dx, dz):
-        NX, NZ, _ = self.shape
-        if x < 0 or z < 0 or x + dx > NX or z + dz > NZ:
-            return None
-        if not free[x:x + dx, z:z + dz].all():
-            return None
-        sub = col[x:x + dx, z:z + dz]
-        if (sub < 0).any():
-            return None
-        vals = np.unique(sub[sub > 0])
-        if len(vals) > 1:
-            return None
-        return int(vals[0]) if len(vals) else 0
-
     def _score(self, x, z, dx, dz, y, pref):
         score = float(dx * dz)
         if y > 0:
@@ -191,6 +177,7 @@ class Packer:
         if not mask.any():
             return
         free = mask.copy()
+        shapes = _shapes(types)
         # phase 1: overhanging cells, any anchor offset, must include a supported cell
         if y > 0:
             under = self.owner[:, :, y - 1] >= 0
@@ -208,18 +195,8 @@ class Packer:
                             dist[a, b] = dist[x, z] + 1
                             nxt.append((a, b))
                 frontier = nxt
-            def options(x, z):
-                out = []
-                for t in types:
-                    for rot in ((0,) if t.L == t.W else (0, 1)):
-                        dx, dz = (t.L, t.W) if rot == 0 else (t.W, t.L)
-                        for ox in range(dx):
-                            for oz in range(dz):
-                                ax, az = x - ox, z - oz
-                                c = self._fits(free, col, ax, az, dx, dz)
-                                if c is not None and under[ax:ax + dx, az:az + dz].any():
-                                    out.append((t, ax, az, dx, dz, c, rot))
-                return out
+            fm = FitMaps(shapes, free, col, under)
+            options = fm.options
             # most constrained first (fewest ways to anchor), then farthest from support
             hang = [tuple(c) for c in np.argwhere(free & ~under)]
             hang.sort(key=lambda c: (len(options(*c)), -dist[c]))
@@ -237,7 +214,8 @@ class Packer:
                     stranded = 0
                     for a in range(max(0, ax - 1), min(free.shape[0], ax + dx + 1)):
                         for b in range(max(0, az - 1), min(free.shape[1], az + dz + 1)):
-                            if free[a, b] and hanging[a, b] and not options(a, b):
+                            if free[a, b] and hanging[a, b] and not fm.any_option_avoiding(
+                                    a, b, ax, az, dx, dz):
                                 stranded += 1
                     free[ax:ax + dx, az:az + dz] = True
                     sc -= 40.0 * stranded
@@ -246,25 +224,125 @@ class Packer:
                 if best:
                     t, ax, az, dx, dz, c, rot = best
                     self._place(t, ax, az, y, dx, dz, h, c, free, rot)
+                    fm.occupy(ax, az, dx, dz)
         # phase 2: scan order, rectangle anchored at the first free cell
+        fm = FitMaps(shapes, free, col)
         key = (lambda c: (c[0], c[1])) if pref == 1 else (lambda c: (c[1], c[0]))
         for x, z in sorted(map(tuple, np.argwhere(free)), key=key):
             if not free[x, z]:
                 continue
             best, bs = None, -1e9
-            for t in types:
-                for rot in ((0,) if t.L == t.W else (0, 1)):
-                    dx, dz = (t.L, t.W) if rot == 0 else (t.W, t.L)
-                    c = self._fits(free, col, x, z, dx, dz)
-                    if c is None:
-                        continue
-                    s = self._score(x, z, dx, dz, y, pref)
-                    if s > bs:
-                        best, bs = (t, dx, dz, c, rot), s
+            for k, (t, rot, dx, dz) in enumerate(shapes):
+                if not fm.ok[k][x, z]:
+                    continue
+                s = self._score(x, z, dx, dz, y, pref)
+                if s > bs:
+                    best, bs = (t, dx, dz, int(fm.color[k][x, z]), rot), s
             if best is None:
                 continue  # left for the plate pass
             t, dx, dz, c, rot = best
             self._place(t, x, z, y, dx, dz, h, c, free, rot)
+            fm.occupy(x, z, dx, dz)
+
+
+def _shapes(types):
+    """(type, rot, dx, dz) in the packer's fixed iteration order."""
+    out = []
+    for t in types:
+        for rot in ((0,) if t.L == t.W else (0, 1)):
+            dx, dz = (t.L, t.W) if rot == 0 else (t.W, t.L)
+            out.append((t, rot, dx, dz))
+    return out
+
+
+def _integral(stack):
+    """Summed-area tables for a stack of 2-D layers, zero row/column in front (int64)."""
+    k, a, b = stack.shape
+    S = np.zeros((k, a + 1, b + 1), dtype=np.int64)
+    S[:, 1:, 1:] = stack.astype(np.int64).cumsum(1).cumsum(2)
+    return S
+
+
+def _wsum(S, dx, dz):
+    """Sum of every dx x dz window; result[..., i, j] covers a[..., i:i+dx, j:j+dz]."""
+    return S[:, dx:, dz:] - S[:, :-dx, dz:] - S[:, dx:, :-dz] + S[:, :-dx, :-dz]
+
+
+class FitMaps:
+    """Where each part shape can be placed on one layer, kept current as parts are placed.
+
+    ok[k][ax, az] is True when shape k anchored at (ax, az) lies on free cells, sees at most
+    one required colour (0 = wildcard), no forbidden (-1) cells, and, if `under` is given,
+    rests on at least one occupied cell below. color[k] holds the colour it would take.
+    Window tests use summed-area tables over the free cells' bounding box; colours are
+    uniform exactly when n * sum(v^2) == sum(v)^2 over the n required cells.
+    This replaces per-rectangle numpy slicing, which dominated packing time.
+    """
+
+    def __init__(self, shapes, free, col, under=None):
+        NX, NZ = free.shape
+        self.shapes = shapes
+        self.ok = [np.zeros((NX, NZ), dtype=bool) for _ in shapes]
+        self.color = [np.zeros((NX, NZ), dtype=np.int32) for _ in shapes]
+        idx = np.argwhere(free)
+        if not len(idx):
+            return
+        (x0, z0), (x1, z1) = idx.min(0), idx.max(0) + 1
+        fr = free[x0:x1, z0:z1]
+        c = col[x0:x1, z0:z1].astype(np.int64)
+        pos = np.where(c > 0, c, 0)
+        layers = [fr, c < 0, pos > 0, pos, pos * pos]
+        if under is not None:
+            layers.append(under[x0:x1, z0:z1])
+        tables = _integral(np.stack(layers))
+        cache: dict = {}
+        for k, (t, rot, dx, dz) in enumerate(shapes):
+            if dx > x1 - x0 or dz > z1 - z0:
+                continue
+            if (dx, dz) not in cache:
+                w = _wsum(tables, dx, dz)
+                n, sv = w[2], w[3]
+                good = (w[0] == dx * dz) & (w[1] == 0) & (n * w[4] == sv * sv)
+                if under is not None:
+                    good &= w[5] > 0
+                colour = np.where(n > 0, sv // np.maximum(n, 1), 0)
+                cache[dx, dz] = (good, colour)
+            good, colour = cache[dx, dz]
+            gx, gz = good.shape
+            self.ok[k][x0:x0 + gx, z0:z0 + gz] = good
+            self.color[k][x0:x0 + gx, z0:z0 + gz] = colour
+
+    def occupy(self, x, z, dx, dz):
+        """Cells x..x+dx, z..z+dz were taken: no shape may be anchored overlapping them."""
+        for k, (_, _, kdx, kdz) in enumerate(self.shapes):
+            self.ok[k][max(0, x - kdx + 1):x + dx, max(0, z - kdz + 1):z + dz] = False
+
+    def options(self, x, z):
+        """Every placement covering cell (x, z), in the packer's historical order
+        (shape, then anchor offset ox, then oz, both counting away from the cell)."""
+        out = []
+        for k, (t, rot, dx, dz) in enumerate(self.shapes):
+            sub = self.ok[k][max(0, x - dx + 1):x + 1, max(0, z - dz + 1):z + 1]
+            if not sub.any():
+                continue
+            col = self.color[k]
+            for i, j in np.argwhere(sub[::-1, ::-1]):
+                ax, az = x - int(i), z - int(j)
+                out.append((t, ax, az, dx, dz, int(col[ax, az]), rot))
+        return out
+
+    def any_option_avoiding(self, x, z, rx, rz, rdx, rdz):
+        """Could cell (x, z) still be covered if rectangle (rx, rz, rdx, rdz) were taken?"""
+        for k, (_, _, dx, dz) in enumerate(self.shapes):
+            x0, z0 = max(0, x - dx + 1), max(0, z - dz + 1)
+            sub = self.ok[k][x0:x + 1, z0:z + 1]
+            if not sub.any():
+                continue
+            for i, j in np.argwhere(sub):
+                ax, az = x0 + int(i), z0 + int(j)
+                if ax + dx <= rx or rx + rdx <= ax or az + dz <= rz or rz + rdz <= az:
+                    return True
+        return False
 
 
 def _stranded(parts, shape):
