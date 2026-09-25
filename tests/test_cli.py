@@ -53,3 +53,16 @@ def test_failing_build_exits_2_and_skips_book(tmp_path):
     assert not m["stats"]["passed"] and m["stats"]["failures"]
     r = run("build", d, "--out", tmp_path / "draft", "--seeds", 1, "--no-strict")
     assert r.returncode == 2 and list((tmp_path / "draft").glob("*.pdf"))
+
+
+def test_v01_model_still_renders(tmp_path):
+    """model.json from v0.1 (schema 0.1) must still regenerate the viewer and the book."""
+    old = os.path.join(ROOT, "tests", "fixtures", "v0.1_model.json")
+    m = json.load(open(old))
+    m["stats"]["necks"] = [{"plate": 9, "strength": 2, "parts_above": 12}]   # 0.1-style neck
+    p = tmp_path / "old.json"
+    p.write_text(json.dumps(m))
+    assert run("viewer", p, "--out", tmp_path / "v.html").returncode == 0
+    r = run("book", p, "--out", tmp_path / "b.pdf")
+    assert r.returncode == 0, r.stderr
+    assert "snapwright.model/0.2" in (tmp_path / "v.html").read_text()

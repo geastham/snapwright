@@ -10,7 +10,7 @@ import time
 
 import numpy as np
 
-from . import exporters
+from . import __version__, exporters
 from .brickify import brickify
 from .catalog import Catalog
 from .dsl import Model, dsl_namespace
@@ -21,6 +21,33 @@ from .validate import connection_graph, occupancy, report_lines, validate, verdi
 DISCLAIMER = ("Unofficial fan design. Not affiliated with, sponsored or endorsed by the LEGO Group "
               "or any other brick manufacturer.")
 ASSETS = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "assets"))
+SCHEMA = "snapwright.model/0.2"
+
+
+def load_model(path_or_dict) -> dict:
+    """Read model.json, upgrading older schemas in memory so every output can be regenerated.
+
+    0.1 -> 0.2: steps gain `level`; stats gain added_cells, studded_cells, floating_voxels,
+    design_voxels (0 when unknown); necks were a per-level heuristic ({plate, strength,
+    parts_above}) and are kept as they are, with mass_g unknown (None)."""
+    m = path_or_dict if isinstance(path_or_dict, dict) else json.load(open(path_or_dict))
+    schema = m.get("schema", "")
+    if schema == SCHEMA:
+        return m
+    if schema != "snapwright.model/0.1":
+        raise SystemExit(f"unknown model schema {schema!r}; this snapwright reads 0.1 and 0.2")
+    parts = m["parts"]
+    for st in m["steps"]:
+        st.setdefault("level", min(parts[i]["y"] for i in st["parts"]))
+    stats = m["stats"]
+    for k in ("added_cells", "studded_cells", "floating_voxels", "design_voxels",
+              "recolored_cells", "trimmed_cells"):
+        stats.setdefault(k, 0)
+    for nk in stats.get("necks", []):
+        nk.setdefault("mass_g", None)
+    m["schema"] = SCHEMA
+    m.setdefault("meta", {}).setdefault("upgraded_from", schema)
+    return m
 
 
 def load_design(path: str, catalog: Catalog) -> Model:
@@ -147,7 +174,7 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
         log(f"  note: {len(stats['weak_parts'])} single-stud joints")
     for nk in stats["necks"][:6]:
         log(f"  note: {nk['parts_above']} parts ({nk['mass_g']:.0f} g) from plate {nk['plate']} up "
-            f"hang on {nk['strength']} stud(s)")
+            f"are held by {nk['strength']} stud(s)")
     if stats["unverified_combos"]:
         log(f"  note: {len(stats['unverified_combos'])} part-colour combos unverified")
 
@@ -166,10 +193,10 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
     stats.pop("per_part_studs", None)
     used = sorted({p["color"] for p in parts})
     model = {
-        "schema": "snapwright.model/0.1",
+        "schema": SCHEMA,
         "meta": {"title": m.title, "subtitle": m.subtitle, "author": m.author,
                  "slug": slugify(m.title), "disclaimer": DISCLAIMER,
-                 "created": _dt.date.today().isoformat(), "generator": "snapwright 0.1",
+                 "created": _dt.date.today().isoformat(), "generator": f"snapwright {__version__}",
                  "design_file": design_file, "finish": finish, "audience": audience},
         "grid": {"shape": list(m.V.shape), "stud_mm": 8.0, "plate_mm": 3.2},
         "colors": {k: cat.colors[k] for k in used},

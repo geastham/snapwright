@@ -9,7 +9,6 @@
   sw.py sync-catalog --key REBRICKABLE_KEY      refresh part-colour availability (needs network)
 """
 import argparse
-import json
 import os
 import sys
 
@@ -53,10 +52,10 @@ def main(argv=None):
             m = pipeline.build(a.design, a.out, **kw)
         sys.exit(0 if m["stats"]["passed"] else 2)
     elif a.cmd == "viewer":
-        pipeline.write_viewer(json.load(open(a.model)), a.out)
+        pipeline.write_viewer(pipeline.load_model(a.model), a.out)
     elif a.cmd == "book":
         from snapwright.book import Book
-        Book(json.load(open(a.model)), Catalog(), a.out, page=a.page).build()
+        Book(pipeline.load_model(a.model), Catalog(), a.out, page=a.page).build()
     elif a.cmd == "sync-catalog":
         from snapwright.sync import sync
         sync(a.key)

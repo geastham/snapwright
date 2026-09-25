@@ -277,7 +277,8 @@ def report_lines(stats) -> list[tuple[str, str]]:
             out.append(("change", f"Auto-repair: {n:,} {one if n == 1 else many}"))
     necks = st.get("necks") or []
     for nk in necks[:3]:
-        out.append(("note", f"Weak point: {nk['parts_above']} parts ({nk['mass_g']:.0f} g) from plate "
+        g = f" ({nk['mass_g']:.0f} g)" if nk.get("mass_g") is not None else ""
+        out.append(("note", f"Weak point: {nk['parts_above']} parts{g} from plate "
                             f"{nk['plate']} up are held by {s_(nk['strength'], 'stud')}"))
     if len(necks) > 3:
         out.append(("note", f"... and {len(necks) - 3} more weak points held by 3 studs or fewer"))
