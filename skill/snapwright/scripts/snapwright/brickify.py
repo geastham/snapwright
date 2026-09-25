@@ -94,6 +94,7 @@ class Packer:
         NX, NZ, NY = V.shape
         self.shape = (NX, NZ, NY)
         self.owner = -np.ones(V.shape, dtype=np.int32)
+        self.stud_top = np.zeros(V.shape, dtype=bool)   # cells whose top offers a stud
         self.parts: list[dict] = []
         lim = lambda t: t.L <= max_len
         self.bricks = [t for t in catalog.of_kind("brick") if lim(t)]
@@ -188,6 +189,7 @@ class Packer:
     def _place(self, t, x, z, y, dx, dz, h, cidx, free, rot):
         pid = len(self.parts)
         self.owner[x:x + dx, z:z + dz, y:y + h] = pid
+        self.stud_top[x:x + dx, z:z + dz, y + h - 1] = t.studs
         free[x:x + dx, z:z + dz] = False
         color = self.palette[(cidx or self.interior) - 1]
         self.parts.append({"id": pid, "part": t.id, "name": t.name, "kind": t.kind, "color": color,
@@ -212,7 +214,7 @@ class Packer:
         NX, NZ, _ = self.shape
         done = 0
         shapes = sorted(_shapes(types), key=lambda s: -(s[2] * s[3]))
-        under = self.owner[:, :, y - 1] >= 0 if y > 0 else np.ones((NX, NZ), dtype=bool)
+        under = self.stud_top[:, :, y - 1] if y > 0 else np.ones((NX, NZ), dtype=bool)
 
         def colour(cells):
             vals = {int(col[c]) for c in cells} - {0}
@@ -281,6 +283,7 @@ class Packer:
                 else:
                     self.parts[slot] = entry
                 self.owner[ax:ax + dx, az:az + dz, y:y + h] = slot
+                self.stud_top[ax:ax + dx, az:az + dz, y + h - 1] = t.studs
             self.rescued += 1
             done += 1
         return done
@@ -292,7 +295,7 @@ class Packer:
         # include a supported cell; on the ground layer everything is supported
         prio = free & (self.priority[:, :, y] > 0)
         if y > 0 or prio.any():
-            under = self.owner[:, :, y - 1] >= 0 if y > 0 else np.ones(free.shape, dtype=bool)
+            under = self.stud_top[:, :, y - 1] if y > 0 else np.ones(free.shape, dtype=bool)
             # farthest-from-support first, so outer rings claim a path inward before inner rings
             dist = np.full(free.shape, 10 ** 6, dtype=np.int32)
             frontier = [tuple(c) for c in np.argwhere(free & under)]

@@ -33,14 +33,35 @@ def occupancy(parts, shape):
     return occ, collisions
 
 
+def stud_socket_grids(parts, shape):
+    """Per-cell connectors: stud[x, z, y] where a part's top layer has a stud at that cell,
+    socket[x, z, y] where a part's bottom layer takes a stud there. Box parts have studs on
+    every top cell (if `studs`) and sockets on every bottom cell; shaped parts list theirs in
+    `top_cells` / `bottom_cells` (world [x, z])."""
+    stud = np.zeros(shape, dtype=bool)
+    sock = np.zeros(shape, dtype=bool)
+    for p in parts:
+        top, bot = p["y"] + p["h"] - 1, p["y"]
+        if "top_cells" in p:
+            for x, z in p["top_cells"]:
+                stud[x, z, top] = True
+        elif p["studs"]:
+            stud[p["x"]:p["x"] + p["dx"], p["z"]:p["z"] + p["dz"], top] = True
+        if "bottom_cells" in p:
+            for x, z in p["bottom_cells"]:
+                sock[x, z, bot] = True
+        else:
+            sock[p["x"]:p["x"] + p["dx"], p["z"]:p["z"] + p["dz"], bot] = True
+    return stud, sock
+
+
 def connection_graph(parts, occ):
-    """Return {(lower, upper): studs} for every stud contact."""
-    studs = np.array([p["studs"] for p in parts], dtype=bool)
+    """Return {(lower, upper): studs} for every stud contact: a stud on the lower part's top
+    cell under a socket on the upper part's bottom cell."""
+    stud, sock = stud_socket_grids(parts, occ.shape)
     a, b = occ[:, :, :-1], occ[:, :, 1:]
-    m = (a >= 0) & (b >= 0) & (a != b)
+    m = (a >= 0) & (b >= 0) & (a != b) & stud[:, :, :-1] & sock[:, :, 1:]
     la, ub = a[m], b[m]
-    keep = studs[la]
-    la, ub = la[keep], ub[keep]
     edges: dict = {}
     for i, j in zip(la.tolist(), ub.tolist()):
         edges[(i, j)] = edges.get((i, j), 0) + 1
