@@ -512,6 +512,11 @@ def _repair(V, parts, shape, no_brick, no_tile, priority, recolor, trim=False, k
     their neighbours, and stop using bricks around them so plates can interlock.
     Round with recolour: nudge visible cells of stranded parts to the adjacent main colour."""
     occ, d, main, bad = _stranded(parts, shape)
+    if keep is not None:   # parts inside floating design islands can't be helped by repairs
+        bad = [p for p in bad if not keep[p["x"]:p["x"] + p["dx"], p["z"]:p["z"] + p["dz"],
+                                          p["y"]:p["y"] + p["h"]].all()]
+    if not bad:
+        return 0, -1
     NX, NZ, NY = shape
     zone = changed = 0
     label = int(priority.max()) + 1
@@ -589,13 +594,13 @@ def brickify(V, palette, catalog, seeds=8, finish="tiles", use_bricks=True, max_
             parts = Packer(W, palette, catalog, seed=s, finish=finish, use_bricks=use_bricks,
                            max_len=max_len, no_brick=no_brick, no_tile=no_tile,
                            priority=priority).run()
-            stats = validate(parts, W.shape, catalog)
+            stats = validate(parts, W.shape, catalog, with_necks=False)
             if (stats["floating"] == 0 and stats["structures"] == 1) or rnd == repair_rounds:
                 break
             ch, zone = _repair(W, parts, W.shape, no_brick, no_tile, priority, keep=islands,
                                recolor=rnd in (2, 3),
                                trim=rnd >= 4)
-            if ch == 0 and zone == 0 and rnd >= 4:
+            if zone < 0 or (ch == 0 and zone == 0 and rnd >= 4):   # nothing repairable left
                 break
         stats.update(change_counts(V, W, palette))
         stats["design_voxels"] = int((V > 0).sum())
@@ -610,5 +615,8 @@ def brickify(V, palette, catalog, seeds=8, finish="tiles", use_bricks=True, max_
         if best is None or key < best[0]:
             best = (key, s, parts, stats, W)
     _, seed, parts, stats, W = best
+    from .validate import connection_graph, find_necks, occupancy
+    occ, _ = occupancy(parts, W.shape)
+    stats["necks"] = find_necks(parts, connection_graph(parts, occ), W.shape)
     stats["seed"] = seed
     return parts, stats, W

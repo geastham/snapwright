@@ -139,8 +139,9 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
         log(f"  FAIL: {f}")
     if stats["weak_parts"]:
         log(f"  note: {len(stats['weak_parts'])} single-stud joints")
-    if stats["necks"]:
-        log(f"  note: thin necks at plates {[n['plate'] for n in stats['necks']][:8]}")
+    for nk in stats["necks"][:6]:
+        log(f"  note: {nk['parts_above']} parts ({nk['mass_g']:.0f} g) from plate {nk['plate']} up "
+            f"hang on {nk['strength']} stud(s)")
     if stats["unverified_combos"]:
         log(f"  note: {len(stats['unverified_combos'])} part-colour combos unverified")
 

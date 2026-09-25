@@ -6,7 +6,7 @@ Checks
   structures      connected components of the connection graph
   floating        parts not connected (through any path) to a part resting on the ground
   weak_parts      parts wider than 1x1 held by a single stud (they can swivel or pop off)
-  necks           plate boundaries where very few studs carry everything above
+  necks           pieces held on by very few studs (min cut on the connection graph)
   balance         centre of mass vs the ground footprint (convex hull), margin in mm
   availability    part-colour combos not verified against the catalog
 """
@@ -98,7 +98,69 @@ def _margin(pt, hull):
     return best if inside else -best
 
 
-def validate(parts, shape, catalog=None) -> dict:
+def find_necks(parts, edges, shape, max_studs=3, min_parts=6):
+    """Weak points: for every plate boundary, each connected group of parts above it is a
+    load; its max flow (in studs) from the ground through the connection graph is the
+    fewest studs that hold it up. When that is <= max_studs, report the piece that would
+    break off (the side of the min cut away from the ground) if it has >= min_parts parts.
+    Several boundaries can find the same cut; each cut is reported once."""
+    from scipy.sparse import csr_matrix
+    from scipy.sparse.csgraph import breadth_first_order, connected_components, maximum_flow
+
+    n = len(parts)
+    if n == 0 or not edges:
+        return []
+    S, T = n, n + 1
+    BIG = 10 ** 6
+    ei = np.array([k for k in edges], dtype=np.int64).reshape(-1, 2)
+    ek = np.array(list(edges.values()), dtype=np.int64)
+    ground = np.array([p["id"] for p in parts if p["y"] == 0], dtype=np.int64)
+    ys = np.array([p["y"] for p in parts])
+    mass = np.array([part_mass_g(p) for p in parts])
+    base_r = np.concatenate([ei[:, 0], ei[:, 1], np.full(len(ground), S)])
+    base_c = np.concatenate([ei[:, 1], ei[:, 0], ground])
+    base_v = np.concatenate([ek, ek, np.full(len(ground), BIG)])
+    seen, found = set(), {}
+    for b in range(1, shape[2]):
+        up = np.nonzero(ys >= b)[0]
+        if len(up) < min_parts:
+            continue
+        keep = (ys[ei[:, 0]] >= b) & (ys[ei[:, 1]] >= b)
+        sub = csr_matrix((np.ones(int(keep.sum())), (ei[keep, 0], ei[keep, 1])), shape=(n, n))
+        _, lab = connected_components(sub, directed=False)
+        for comp in np.unique(lab[up]):
+            C = up[lab[up] == comp]
+            key = C.tobytes()
+            if key in seen:
+                continue
+            seen.add(key)
+            r = np.concatenate([base_r, C])
+            c = np.concatenate([base_c, np.full(len(C), T)])
+            v = np.concatenate([base_v, np.full(len(C), BIG)])
+            cap = csr_matrix((v.astype(np.int32), (r, c)), shape=(n + 2, n + 2))
+            res = maximum_flow(cap, S, T)
+            if res.flow_value == 0 or res.flow_value > max_studs:
+                continue          # floating (reported elsewhere) or strong enough
+            # residual reachability from the ground gives the cut nearest the ground
+            resid = (cap - res.flow).tocsr()
+            resid.data = np.where(resid.data > 0, 1, 0)
+            resid.eliminate_zeros()
+            reach = np.zeros(n + 2, dtype=bool)
+            reach[breadth_first_order(resid, S, directed=True, return_predecessors=False)] = True
+            piece = np.nonzero(~reach[:n])[0]
+            if len(piece) < min_parts:
+                continue
+            cut = tuple(sorted((int(i), int(j)) for i, j in ei
+                               if reach[i] != reach[j]))
+            if cut in found and found[cut]["plate"] <= b:
+                continue
+            found[cut] = {"plate": int(min(ys[piece])), "strength": int(res.flow_value),
+                          "parts_above": int(len(piece)), "mass_g": round(float(mass[piece].sum()), 1),
+                          "cut": [list(e) for e in cut]}
+    return sorted(found.values(), key=lambda d: (d["strength"], -d["parts_above"], d["plate"]))
+
+
+def validate(parts, shape, catalog=None, with_necks=True) -> dict:
     n = len(parts)
     occ, collisions = occupancy(parts, shape)
     edges = connection_graph(parts, occ)
@@ -114,21 +176,7 @@ def validate(parts, shape, catalog=None) -> dict:
 
     weak = [p["id"] for p in parts if p["dx"] * p["dz"] > 1 and per_part[p["id"]] == 1 and p["y"] > 0]
 
-    # necks: at each plate boundary, stud contacts starting there plus cells of parts that
-    # span straight through it; low totals under a lot of model are fragile points
-    NY = shape[2]
-    cross = np.zeros(NY + 1, dtype=int)
-    for (i, j), k in edges.items():
-        cross[parts[j]["y"]] += k
-    span = np.zeros(NY + 1, dtype=int)
-    starts = np.zeros(NY + 1, dtype=int)
-    for p in parts:
-        starts[p["y"]] += 1
-        for yy in range(p["y"] + 1, p["y"] + p["h"]):
-            span[yy] += p["dx"] * p["dz"]
-    above = np.cumsum(starts[::-1])[::-1]
-    necks = [{"plate": int(y), "strength": int(cross[y] + span[y]), "parts_above": int(above[y])}
-             for y in range(1, NY) if above[y] >= 6 and cross[y] + span[y] <= 3]
+    necks = find_necks(parts, edges, shape) if with_necks else []
 
     # balance
     mass = [part_mass_g(p) for p in parts]

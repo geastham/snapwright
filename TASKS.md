@@ -10,7 +10,7 @@ across runs (model.json identical apart from `meta.created`).
 - [x] Baseline reproduced
 - [x] Repo hygiene: .gitignore, stop tracking generated `out/` and `.DS_Store`
 - [x] `--profile` flag: per-stage timings + cProfile dump
-- [ ] Unit tests for every module (catalog, dsl, brickify, validate, steps, render, book, exporters, pipeline/CLI)
+- [~] Unit tests for every module (validate, steps, exporters done; (catalog, dsl, brickify, validate, steps, render, book, exporters, pipeline/CLI)
 - [x] Regression fixtures in `tests/fixtures/` (circle-corner overhang conflict, ...)
 - [x] Property tests on random blobby models (spheres, tubes, overhangs, 1-stud speckles, stair-step circles):
       no collisions; PASS implies every part reachable from ground; steps feasible in order
@@ -20,9 +20,10 @@ across runs (model.json identical apart from `meta.created`).
 - [x] §7.3 spatial step clustering: region growing; lighthouse mean step spread 4.53 -> 3.19 studs
 - [x] §7.4 visibility-scored view choice (id-buffer): hidden new parts 2.6% -> 1.4% on random designs
       (+~2 turns per model); single hidden parts get an x-ray outline in M5
-- [ ] §7.5 min-cut necks on the connection graph
+- [x] §7.5 min-cut necks: max-flow per load above each boundary; reports the piece that would
+      break off. Lighthouse: now finds real 1-2 stud joints (gallery railing), old heuristic found none
 - [ ] §7.7 mosaic flat mode: staggered base plate layers, verified one structure
-- [ ] §7.8 LDraw round-trip test
+- [x] §7.8 LDraw round-trip test (exporters.parse_ldraw); LeoCAD screenshot check is M2
 - [x] §7.1 PDF size: 10.2 MB -> 4.9 MB (indexed-colour images; M5 pushes further)
 - [~] Performance: lighthouse build with book 49 s -> 14.4 s CPU (done); 5,000-part model < 3 min (pending)
 - [ ] Golden test on the lighthouse (parts ± 5 %, PASS, deterministic); `pytest -q` < 60 s
