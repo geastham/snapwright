@@ -9,14 +9,14 @@ across runs (model.json identical apart from `meta.created`).
 ## M1 checklist
 - [x] Baseline reproduced
 - [x] Repo hygiene: .gitignore, stop tracking generated `out/` and `.DS_Store`
-- [ ] `--profile` flag: per-stage timings + cProfile dump
+- [x] `--profile` flag: per-stage timings + cProfile dump
 - [ ] Unit tests for every module (catalog, dsl, brickify, validate, steps, render, book, exporters, pipeline/CLI)
-- [ ] Regression fixtures in `tests/fixtures/` (circle-corner overhang conflict, ...)
-- [ ] Property tests on random blobby models (spheres, tubes, overhangs, 1-stud speckles, stair-step circles):
+- [x] Regression fixtures in `tests/fixtures/` (circle-corner overhang conflict, ...)
+- [~] Property tests on random blobby models (generator + oracles done; pytest wrapper pending) (spheres, tubes, overhangs, 1-stud speckles, stair-step circles):
       no collisions; PASS implies every part reachable from ground; steps feasible in order
-- [ ] Honest change counts: recoloured/trimmed computed from design vs built grid
-- [ ] Transparent parts: cells behind/inside trans colours keep their colour
-- [ ] Step feasibility includes insertion direction (from above / pressed from below)
+- [x] Honest change counts: recoloured/trimmed computed from design vs built grid
+- [x] Transparent parts: cells behind/inside trans colours keep their colour
+- [x] Step feasibility includes insertion direction (from above / pressed from below)
 - [ ] §7.3 spatial step clustering (finish one region before the next)
 - [ ] §7.4 visibility-scored view choice (render-mask based)
 - [ ] §7.5 min-cut necks on the connection graph
@@ -27,6 +27,19 @@ across runs (model.json identical apart from `meta.created`).
 - [ ] Golden test on the lighthouse (parts ± 5 %, PASS, deterministic); `pytest -q` < 60 s
 - [ ] SKILL.md / references / SPEC / README updated; outputs visually inspected
 - [ ] PR opened with Decisions section; run summary posted
+
+## Found so far
+- Steps: deferred overhangs were resolved in one pass, so a part whose support was itself
+  deferred got placed after the part above it (sandwiched, impossible to fit). Fixed:
+  fixed-point resolution; overhang chains go on one link per step. Fixtures blob_003, 032, 020.
+- recolored_cells was summed per repair round (double counts). Now the real design-vs-built
+  difference; new `added_cells` stat. Fixture blob_020.
+- Transparent colours were treated as opaque for visibility, so what's behind/inside them took
+  arbitrary colours. Now see-through. Fixture blob_013, blob_026.
+- Stair-step corners competing for one neighbour stranded 1x1 columns (repair couldn't fix).
+  New: stranded cells become priority cells (packed first, must join a neighbour) plus a
+  lone-cell rescue pass. Fixtures blob_013, blob_082 (rescue collision regression).
+- Open: blobby seeds 180, 240, 266, 299 FAIL honestly after these fixes; investigate.
 
 ## Noted for later milestones
 - M6: evals.json eval 5 points at `examples/lighthouse/out/model.json`, which is no longer

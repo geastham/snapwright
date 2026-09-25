@@ -2,9 +2,13 @@
 
 Rules
   * Bottom-up by plate level; each step holds parts from one level (or a deferred overhang).
-  * Every part must click onto something already placed (or the table) when its step comes.
+  * Every part must click onto something already placed (or the table) when its step comes,
+    and there must be room to put it on: pressed down while nothing is placed directly above
+    it, or pressed up from below while nothing is placed directly below it.
     Parts that only connect to parts above them (overhangs) are deferred and pushed on
-    from below right after their anchor is placed.
+    from below right after their anchor is placed. Deferred parts are re-checked until
+    nothing changes, so a part whose support was itself deferred is still pressed down
+    before anything covers it.
   * Steps are chunked spatially (row by row) and capped at `max_per_step` parts, fewer
     for young builders.
   * A camera view (quarter turn, 0-3) is chosen per step so new parts face the reader,
@@ -20,9 +24,13 @@ AUDIENCE_MAX = {"kids": 4, "family": 7, "adult": 12, "expert": 20}
 def plan_steps(parts, edges, shape, max_per_step=8):
     n = len(parts)
     nbrs = defaultdict(set)
+    below = defaultdict(set)
+    above = defaultdict(set)
     for (i, j) in edges:
         nbrs[i].add(j)
         nbrs[j].add(i)
+        above[i].add(j)
+        below[j].add(i)
     placed = [False] * n
     steps = []
     by_level = defaultdict(list)
@@ -63,11 +71,18 @@ def plan_steps(parts, edges, shape, max_per_step=8):
                     progress = True
         emit(ready)
         pending.extend(later)
-        # try to place pending overhangs now that more parts exist
-        now = [pid for pid in pending if placeable(pid)]
-        if now:
-            pending = [pid for pid in pending if pid not in now]
-            emit(now, kind="overhang")
+        # place deferred parts that can now go on, until nothing changes: first those that
+        # sit on something placed (pressed down as usual), then true overhangs (pressed up)
+        while pending:
+            down = [pid for pid in pending if any(placed[q] for q in below[pid])]
+            up = [] if down else [pid for pid in pending if any(placed[q] for q in above[pid])]
+            # a chain of overhangs goes on one link per step, top link first
+            up = [pid for pid in up if not (above[pid] & set(up))]
+            now = down or up
+            if not now:
+                break
+            pending = [pid for pid in pending if pid not in set(now)]
+            emit(now, kind="build" if down else "overhang")
     if pending:  # anything left is unreachable; put it last so the checks flag it
         emit(pending, kind="unanchored")
 

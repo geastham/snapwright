@@ -73,11 +73,48 @@ class Timer:
 def build(design, out, seeds=8, finish="tiles", audience="adult", max_per_step=None,
           book=True, viewer=True, page="letter", strict=True, catalog=None, log=print,
           timer=None):
+    """Full pipeline from a design file to every output in `out`. Returns model.json."""
     tm = timer or Timer()
     cat = catalog or Catalog()
     m = load_design(design, cat)
     tm.lap("design")
     os.makedirs(out, exist_ok=True)
+    model, V_final = solve(m, cat, seeds=seeds, finish=finish, audience=audience,
+                           max_per_step=max_per_step, design_file=os.path.basename(design),
+                           log=log, timer=tm)
+    ok = model["stats"]["passed"]
+    parts = model["parts"]
+    slug = model["meta"]["slug"]
+    with open(os.path.join(out, "model.json"), "w") as f:
+        json.dump(model, f)
+    log(f"[5/6] exports -> {out}")
+    _write(out, f"{slug}.ldr", exporters.to_ldraw(model, cat))
+    _write(out, f"{slug}-bricklink.xml", exporters.to_bricklink_xml(parts, cat))
+    _write(out, f"{slug}-rebrickable.csv", exporters.to_rebrickable_csv(parts, cat))
+    _write(out, f"{slug}-parts.csv", exporters.to_csv(parts, cat))
+    np.savez_compressed(os.path.join(out, "voxels.npz"), V=m.V, V_built=V_final, palette=np.array(m.palette))
+    tm.lap("exports")
+    if viewer:
+        write_viewer(model, os.path.join(out, f"{slug}-viewer.html"))
+        tm.lap("viewer")
+    if book:
+        if ok or not strict:
+            from .book import Book
+            log("[6/6] book")
+            Book(model, cat, os.path.join(out, f"{slug}-instructions.pdf"), page=page, log=log).build()
+        else:
+            log("[6/6] book skipped: fix the failures above (or pass --no-strict for a draft)")
+        tm.lap("book")
+    s = model["stats"]
+    log(f"done: {s['parts']:,} parts, {s['steps']} steps, {s['connections']:,} connections, "
+        f"{'PASS' if ok else 'FAIL'}")
+    return model
+
+
+def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max_per_step=None,
+          design_file="design.py", log=print, timer=None):
+    """Design model -> parts, checks and steps, in memory. Returns (model dict, built voxels)."""
+    tm = timer or Timer()
     log(f"[1/6] design: {m.title} - {m.voxel_count():,} voxels on {m.NX}x{m.NZ}x{m.NY}")
 
     log("[2/6] brickify")
@@ -118,7 +155,7 @@ def build(design, out, seeds=8, finish="tiles", audience="adult", max_per_step=N
         "meta": {"title": m.title, "subtitle": m.subtitle, "author": m.author,
                  "slug": slugify(m.title), "disclaimer": DISCLAIMER,
                  "created": _dt.date.today().isoformat(), "generator": "snapwright 0.1",
-                 "design_file": os.path.basename(design), "finish": finish, "audience": audience},
+                 "design_file": design_file, "finish": finish, "audience": audience},
         "grid": {"shape": list(m.V.shape), "stud_mm": 8.0, "plate_mm": 3.2},
         "colors": {k: cat.colors[k] for k in used},
         "catalog_names": {p["part"]: p["name"] for p in parts},
@@ -127,31 +164,7 @@ def build(design, out, seeds=8, finish="tiles", audience="adult", max_per_step=N
         "bom": [list(r) for r in exporters.bom(parts)],
         "stats": {**stats, "steps": len(steps), "passed": ok, "failures": fails},
     }
-    slug = model["meta"]["slug"]
-    with open(os.path.join(out, "model.json"), "w") as f:
-        json.dump(model, f)
-    log(f"[5/6] exports -> {out}")
-    _write(out, f"{slug}.ldr", exporters.to_ldraw(model, cat))
-    _write(out, f"{slug}-bricklink.xml", exporters.to_bricklink_xml(parts, cat))
-    _write(out, f"{slug}-rebrickable.csv", exporters.to_rebrickable_csv(parts, cat))
-    _write(out, f"{slug}-parts.csv", exporters.to_csv(parts, cat))
-    np.savez_compressed(os.path.join(out, "voxels.npz"), V=m.V, V_built=V_final, palette=np.array(m.palette))
-    tm.lap("exports")
-    if viewer:
-        write_viewer(model, os.path.join(out, f"{slug}-viewer.html"))
-        tm.lap("viewer")
-    if book:
-        if ok or not strict:
-            from .book import Book
-            log("[6/6] book")
-            Book(model, cat, os.path.join(out, f"{slug}-instructions.pdf"), page=page, log=log).build()
-        else:
-            log("[6/6] book skipped: fix the failures above (or pass --no-strict for a draft)")
-        tm.lap("book")
-    s = model["stats"]
-    log(f"done: {s['parts']:,} parts, {s['steps']} steps, {s['connections']:,} connections, "
-        f"{'PASS' if ok else 'FAIL'}")
-    return model
+    return model, V_final
 
 
 def write_viewer(model, path):

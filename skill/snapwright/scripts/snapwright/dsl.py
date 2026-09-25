@@ -48,6 +48,7 @@ class Model:
     def _idx(self, color):
         if color is None:
             return 0
+        color = str(color)          # numpy strings would leak into model.json
         self.catalog.color(color)  # validates key
         if color not in self.palette:
             self.palette.append(color)

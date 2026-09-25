@@ -30,11 +30,20 @@ except Exception:  # pragma: no cover
     _ndi = None
 
 
-def exterior_visible(V: np.ndarray) -> np.ndarray:
-    """Filled cells that touch empty space connected to the outside (table side excluded)."""
+def see_through(V: np.ndarray, palette: list[str]) -> np.ndarray:
+    """Cells made of transparent colours: you can see into and through them."""
+    clear = [i + 1 for i, k in enumerate(palette) if str(k).startswith("trans")]
+    return np.isin(V, clear) if clear else np.zeros(V.shape, dtype=bool)
+
+
+def exterior_visible(V: np.ndarray, clear: np.ndarray | None = None) -> np.ndarray:
+    """Filled cells that touch empty space connected to the outside (table side excluded).
+    `clear` marks see-through cells: light passes through them, so they and whatever is
+    behind them are visible too (a solid transparent lantern shows its core)."""
     NX, NZ, NY = V.shape
+    open_ = V == 0 if clear is None else (V == 0) | clear
     # pad x/z both sides and the top; the bottom (table) is not an opening
-    empty = np.pad(V == 0, ((1, 1), (1, 1), (0, 1)), constant_values=True)
+    empty = np.pad(open_, ((1, 1), (1, 1), (0, 1)), constant_values=True)
     if _ndi is not None:
         lab, _ = _ndi.label(empty)
         outside = lab == lab[0, 0, -1]
@@ -66,10 +75,13 @@ class Packer:
     def __init__(self, V: np.ndarray, palette: list[str], catalog: Catalog, seed: int = 0,
                  finish: str = "tiles", use_bricks: bool = True, max_len: int = 8,
                  interior: int | None = None, no_brick: np.ndarray | None = None,
-                 no_tile: np.ndarray | None = None):
+                 no_tile: np.ndarray | None = None, priority: np.ndarray | None = None):
         self.V = V
         self.no_tile = no_tile if no_tile is not None else np.zeros(V.shape, dtype=bool)
         self.no_brick = no_brick if no_brick is not None else np.zeros(V.shape, dtype=bool)
+        # cells that ended up in stranded parts last round: packed first, at any offset
+        self.priority = priority if priority is not None else np.zeros(V.shape, dtype=bool)
+        self.rescued = 0
         self.palette = palette
         self.cat = catalog
         self.rng = random.Random(seed)
@@ -84,7 +96,7 @@ class Packer:
         self.bricks = [t for t in catalog.of_kind("brick") if lim(t)]
         self.plates = [t for t in catalog.of_kind("plate") if lim(t)]
         self.tiles = [t for t in catalog.of_kind("tile") if lim(t)]
-        self.vis = exterior_visible(V)
+        self.vis = exterior_visible(V, see_through(V, palette))
         # colour requirement per cell: palette index if visible, 0 = wildcard (hidden)
         self.req = np.where(self.vis, V, 0).astype(np.int16)
         if interior is None:
@@ -145,6 +157,11 @@ class Packer:
                     self._pack(tmask, col, y, 1, self.tiles, (pref + y) % 2)
                 else:
                     self._pack(rem, col, y, 1, self.plates, (pref + y) % 2)
+        if any(p.get("dead") for p in self.parts):
+            self.parts = [p for p in self.parts if not p.get("dead")]
+            for i, p in enumerate(self.parts):
+                p["id"] = i
+                self.owner[p["x"]:p["x"] + p["dx"], p["z"]:p["z"] + p["dz"], p["y"]:p["y"] + p["h"]] = i
         return self.parts
 
     # ---- packing ----------------------------------------------------------
@@ -176,11 +193,102 @@ class Packer:
     def _pack(self, mask, col, y, h, types, pref):
         if not mask.any():
             return
+        start = len(self.parts)
+        self._pack_layer(mask, col, y, h, types, pref)
+        if self.priority[:, :, y].any():
+            for _ in range(4):  # a rescue can free a neighbour for the next one
+                if not self._rescue(start, col, y, h, types):
+                    break
+
+    def _rescue(self, start, col, y, h, types):
+        """Greedy packing can strand a priority cell as a lone 1x1 when two corners compete
+        for the same neighbour. Take a cell from an adjacent part placed in this pass and
+        re-cover that part's other cells, if every new piece still rests on something.
+        Returns how many lone cells were joined."""
+        NX, NZ, _ = self.shape
+        done = 0
+        shapes = sorted(_shapes(types), key=lambda s: -(s[2] * s[3]))
+        under = self.owner[:, :, y - 1] >= 0 if y > 0 else np.ones((NX, NZ), dtype=bool)
+
+        def colour(cells):
+            vals = {int(col[c]) for c in cells} - {0}
+            return None if len(vals) > 1 or any(col[c] < 0 for c in cells) else (vals.pop() if vals else 0)
+
+        def cover(cells):
+            """Rectangles of catalog shapes exactly covering `cells`, biggest first, or None."""
+            left, out = set(cells), []
+            while left:
+                x, z = min(left)
+                for t, rot, dx, dz in shapes:
+                    rect = {(x + i, z + j) for i in range(dx) for j in range(dz)}
+                    if rect <= left and colour(rect) is not None and any(under[c] for c in rect):
+                        out.append((t, rot, x, z, dx, dz, colour(rect)))
+                        left -= rect
+                        break
+                else:
+                    return None
+            return out
+
+        for pid in range(start, len(self.parts)):
+            p = self.parts[pid]
+            if p.get("dead") or p["dx"] * p["dz"] != 1 or not self.priority[p["x"], p["z"], y]:
+                continue
+            x, z = p["x"], p["z"]
+            best = None
+            for a, b in ((x + 1, z), (x - 1, z), (x, z + 1), (x, z - 1)):
+                if not (0 <= a < NX and 0 <= b < NZ):
+                    continue
+                q = int(self.owner[a, b, y])
+                if q < start or q == pid or self.parts[q]["h"] != h or self.parts[q]["y"] != y:
+                    continue
+                Q = self.parts[q]
+                qcells = {(Q["x"] + i, Q["z"] + j) for i in range(Q["dx"]) for j in range(Q["dz"])}
+                pool = qcells | {(x, z)}
+                for t, rot, dx, dz in shapes:
+                    for ox in range(dx):
+                        for oz in range(dz):
+                            ax, az = x - ox, z - oz
+                            rect = {(ax + i, az + j) for i in range(dx) for j in range(dz)}
+                            if (a, b) not in rect or not rect <= pool or colour(rect) is None \
+                                    or not any(under[c] for c in rect):
+                                continue
+                            rest = cover(pool - rect)
+                            if rest is None:
+                                continue
+                            plan = [(t, rot, ax, az, dx, dz, colour(rect))] + rest
+                            lone = sum(1 for r in rest if r[4] * r[5] == 1
+                                       and self.priority[r[2], r[3], y])
+                            cost = len(plan) + 3 * lone
+                            if best is None or cost < best[0]:
+                                best = (cost, q, plan)
+            if best is None:
+                continue
+            _, q, plan = best
+            if len(plan) == 1:          # the joined part swallowed the neighbour whole
+                self.parts[q]["dead"] = True
+            for slot, (t, rot, ax, az, dx, dz, c) in zip([pid, q] + [None] * len(plan), plan):
+                slot = len(self.parts) if slot is None else slot
+                entry = {"id": slot, "part": t.id, "name": t.name, "kind": t.kind,
+                         "color": self.palette[(c or self.interior) - 1], "x": int(ax), "z": int(az),
+                         "y": int(y), "dx": int(dx), "dz": int(dz), "h": int(h), "rot": rot,
+                         "studs": t.studs}
+                if slot == len(self.parts):
+                    self.parts.append(entry)
+                else:
+                    self.parts[slot] = entry
+                self.owner[ax:ax + dx, az:az + dz, y:y + h] = slot
+            self.rescued += 1
+            done += 1
+        return done
+
+    def _pack_layer(self, mask, col, y, h, types, pref):
         free = mask.copy()
         shapes = _shapes(types)
-        # phase 1: overhanging cells, any anchor offset, must include a supported cell
-        if y > 0:
-            under = self.owner[:, :, y - 1] >= 0
+        # phase 1: overhanging cells (and repair-priority cells), any anchor offset, must
+        # include a supported cell; on the ground layer everything is supported
+        prio = free & self.priority[:, :, y]
+        if y > 0 or prio.any():
+            under = self.owner[:, :, y - 1] >= 0 if y > 0 else np.ones(free.shape, dtype=bool)
             # farthest-from-support first, so outer rings claim a path inward before inner rings
             dist = np.full(free.shape, 10 ** 6, dtype=np.int32)
             frontier = [tuple(c) for c in np.argwhere(free & under)]
@@ -196,11 +304,14 @@ class Packer:
                             nxt.append((a, b))
                 frontier = nxt
             fm = FitMaps(shapes, free, col, under)
-            options = fm.options
+            # a supported priority cell only counts as covered by a part that joins it to a
+            # neighbour; a lone 1x1 there is what stranded it (left to phase 2 as a fallback)
+            def options(x, z):
+                return fm.options(x, z, 2 if under[x, z] else 1)
             # most constrained first (fewest ways to anchor), then farthest from support
-            hang = [tuple(c) for c in np.argwhere(free & ~under)]
+            hanging = free & (~under | prio)
+            hang = [tuple(c) for c in np.argwhere(hanging)]
             hang.sort(key=lambda c: (len(options(*c)), -dist[c]))
-            hanging = free & ~under
             for x, z in hang:
                 if not free[x, z]:
                     continue
@@ -215,7 +326,7 @@ class Packer:
                     for a in range(max(0, ax - 1), min(free.shape[0], ax + dx + 1)):
                         for b in range(max(0, az - 1), min(free.shape[1], az + dz + 1)):
                             if free[a, b] and hanging[a, b] and not fm.any_option_avoiding(
-                                    a, b, ax, az, dx, dz):
+                                    a, b, ax, az, dx, dz, 2 if under[a, b] else 1):
                                 stranded += 1
                     free[ax:ax + dx, az:az + dz] = True
                     sc -= 40.0 * stranded
@@ -317,11 +428,13 @@ class FitMaps:
         for k, (_, _, kdx, kdz) in enumerate(self.shapes):
             self.ok[k][max(0, x - kdx + 1):x + dx, max(0, z - kdz + 1):z + dz] = False
 
-    def options(self, x, z):
+    def options(self, x, z, min_area=1):
         """Every placement covering cell (x, z), in the packer's historical order
         (shape, then anchor offset ox, then oz, both counting away from the cell)."""
         out = []
         for k, (t, rot, dx, dz) in enumerate(self.shapes):
+            if dx * dz < min_area:
+                continue
             sub = self.ok[k][max(0, x - dx + 1):x + 1, max(0, z - dz + 1):z + 1]
             if not sub.any():
                 continue
@@ -331,9 +444,11 @@ class FitMaps:
                 out.append((t, ax, az, dx, dz, int(col[ax, az]), rot))
         return out
 
-    def any_option_avoiding(self, x, z, rx, rz, rdx, rdz):
+    def any_option_avoiding(self, x, z, rx, rz, rdx, rdz, min_area=1):
         """Could cell (x, z) still be covered if rectangle (rx, rz, rdx, rdz) were taken?"""
         for k, (_, _, dx, dz) in enumerate(self.shapes):
+            if dx * dz < min_area:
+                continue
             x0, z0 = max(0, x - dx + 1), max(0, z - dz + 1)
             sub = self.ok[k][x0:x + 1, z0:z + 1]
             if not sub.any():
@@ -360,13 +475,17 @@ def _stranded(parts, shape):
     return occ, d, main, [p for p in parts if d.find(p["id"]) != main]
 
 
-def _repair(V, parts, shape, no_brick, no_tile, recolor, trim=False):
-    """Round without recolour: stop using bricks around stranded parts so plates can interlock.
+def _repair(V, parts, shape, no_brick, no_tile, priority, recolor, trim=False):
+    """Every round: pack the cells of stranded parts first, at any offset, so they bridge into
+    their neighbours, and stop using bricks around them so plates can interlock.
     Round with recolour: nudge visible cells of stranded parts to the adjacent main colour."""
     occ, d, main, bad = _stranded(parts, shape)
     NX, NZ, NY = shape
     zone = changed = 0
     for p in bad:
+        pr = priority[p["x"]:p["x"] + p["dx"], p["z"]:p["z"] + p["dz"], p["y"]:p["y"] + p["h"]]
+        zone += int((~pr).sum())
+        pr[...] = True
         x0, x1 = max(0, p["x"] - 1), min(NX, p["x"] + p["dx"] + 1)
         z0, z1 = max(0, p["z"] - 1), min(NZ, p["z"] + p["dz"] + 1)
         c0 = (p["y"] // 3) * 3
@@ -409,6 +528,15 @@ def _repair(V, parts, shape, no_brick, no_tile, recolor, trim=False):
     return changed, zone
 
 
+def change_counts(V, W, palette) -> dict:
+    """What the automatic repairs really changed, from the design grid V vs the built grid W:
+    visible cells whose colour differs, design cells removed, and cells added."""
+    vis = exterior_visible(W, see_through(W, palette))
+    return {"recolored_cells": int(((V > 0) & (W > 0) & (V != W) & vis).sum()),
+            "trimmed_cells": int(((V > 0) & (W == 0)).sum()),
+            "added_cells": int(((V == 0) & (W > 0)).sum())}
+
+
 def brickify(V, palette, catalog, seeds=8, finish="tiles", use_bricks=True, max_len=8,
              repair_rounds=6, log=print):
     """Try several seeds (each with a repair loop), validate, keep the best.
@@ -419,28 +547,26 @@ def brickify(V, palette, catalog, seeds=8, finish="tiles", use_bricks=True, max_
         W = V.copy()
         no_brick = np.zeros(V.shape, dtype=bool)
         no_tile = np.zeros(V.shape, dtype=bool)
-        recolored = trimmed = 0
+        priority = np.zeros(V.shape, dtype=bool)
         for rnd in range(repair_rounds + 1):
             parts = Packer(W, palette, catalog, seed=s, finish=finish, use_bricks=use_bricks,
-                           max_len=max_len, no_brick=no_brick, no_tile=no_tile).run()
+                           max_len=max_len, no_brick=no_brick, no_tile=no_tile,
+                           priority=priority).run()
             stats = validate(parts, W.shape, catalog)
             if (stats["floating"] == 0 and stats["structures"] == 1) or rnd == repair_rounds:
                 break
-            ch, zone = _repair(W, parts, W.shape, no_brick, no_tile, recolor=rnd in (2, 3),
+            ch, zone = _repair(W, parts, W.shape, no_brick, no_tile, priority, recolor=rnd in (2, 3),
                                trim=rnd >= 4)
-            if ch < 0:
-                trimmed -= ch
-            else:
-                recolored += ch
             if ch == 0 and zone == 0 and rnd >= 4:
                 break
-        stats["trimmed_cells"] = trimmed
-        stats["recolored_cells"] = recolored
-        key = (stats["floating"], stats["structures"], len(stats["weak_parts"]), trimmed + recolored,
+        stats.update(change_counts(V, W, palette))
+        changes = stats["recolored_cells"] + stats["trimmed_cells"] + stats["added_cells"]
+        key = (stats["floating"], stats["structures"], len(stats["weak_parts"]), changes,
                -stats["links"], len(parts))
         log(f"  seed {s}: {len(parts)} parts, {stats['links']} part-to-part links, "
             f"{stats['structures']} structure(s), {stats['floating']} floating, "
-            f"{len(stats['weak_parts'])} weak, {recolored} recoloured, {trimmed} trimmed")
+            f"{len(stats['weak_parts'])} weak, {stats['recolored_cells']} recoloured, "
+            f"{stats['trimmed_cells']} trimmed")
         if best is None or key < best[0]:
             best = (key, s, parts, stats, W)
     _, seed, parts, stats, W = best
