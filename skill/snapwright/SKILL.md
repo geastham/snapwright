@@ -40,7 +40,9 @@ top, to save parts. Use only catalog colours (`assets/catalog.json`); prefer `co
 python <skill>/scripts/sw.py preview design.py --out out/preview
 ```
 Look at all four `preview_view*.png` next to the reference. Fix proportions and colours
-before building. Iterate 2-4 times; this is where likeness comes from.
+before building. Iterate 2-4 times; this is where likeness comes from. If preview prints a
+`warning: ... voxels ... don't touch the rest of the model or the ground`, join that part
+to the model now: nothing can hold it up and the build will fail.
 
 ## 3. Build and check
 
@@ -48,20 +50,25 @@ before building. Iterate 2-4 times; this is where likeness comes from.
 python <skill>/scripts/sw.py build design.py --out out --audience adult --seeds 8
 ```
 Exit code 0 = checks passed and the book was written; 2 = failures (book skipped unless
-`--no-strict`). Read the log. For every failure or note, apply the matching fix from
-`references/geometry-and-checks.md` (usually a design change: thicken a neck, add support
-under an overhang, widen a 1-stud feature, simplify a colour speckle), then rebuild. Never
-present a model with floating parts, multiple structures or a centre of mass under 3 mm
-inside the footprint as buildable.
+`--no-strict`). Read the `summary` block at the end of the log: it is exactly what the book
+finale and the viewer will say. For every FAIL or note, apply the matching fix from
+`references/geometry-and-checks.md` (usually a design change: join a floating part, add
+support under an overhang, thicken a weak point, widen a 1-stud feature, simplify a colour
+speckle), then rebuild. Never present a model with floating parts, multiple structures,
+large trims or a centre of mass under 3 mm inside the footprint as buildable.
 
-Report honestly: surface cells recoloured by the repair loop, single-stud joints, thin
-necks, and part-colour combos not verified against a real catalog. Everything is "checked in
-software"; nobody has built it until someone builds it.
+Report honestly, from the summary: every auto-repair (cells recoloured, overhang cells
+trimmed, tops that got studded plates instead of tiles), weak points (pieces held by 3 studs
+or fewer), single-stud joints, and part-colour combos not verified against a real catalog.
+Everything is "checked in software"; nobody has built it until someone builds it.
+Builds are deterministic: the same design file and seeds give the same model. Add
+`--profile` to see where time goes on big models (a 5,000-part model takes ~2 minutes).
 
 ## 4. Outputs (all in `out/`)
 
 - `<slug>-instructions.pdf`: cover, parts inventory, numbered steps with callouts, finale
 - `<slug>-viewer.html`: self-contained 3D viewer with build playback, parts list, checks
+  (open with `?step=N` to start paused at step N)
 - `<slug>.ldr`: LDraw with STEP markers (opens in LeoCAD, Studio, Mecabricks)
 - `<slug>-bricklink.xml`, `<slug>-rebrickable.csv`, `<slug>-parts.csv`
 - `model.json`: canonical model (schema in `references/geometry-and-checks.md`)
@@ -71,9 +78,11 @@ anything the user should know before buying parts, and one concrete next improve
 
 ## 5. Photos to mosaics
 
-For "make a mosaic of this photo": `model = Model(48, 48, 2)` then
-`model.mosaic("photo.jpg", mode="flat")`, or `mode="upright"` with a height in plates of
-roughly width x 2.5 for correct aspect. Offer a limited palette for a graphic look.
+For "make a mosaic of this photo": `model = Model(48, 48, 3)` then
+`model.mosaic("photo.jpg", mode="flat")`: two staggered base plate layers hold it together
+and the picture is a layer of tiles on top (the grid grows if it is too short). Or
+`mode="upright"` with a height in plates of roughly width x 2.5 for correct aspect. Offer a
+limited palette for a graphic look.
 
 ## Files
 
@@ -81,6 +90,7 @@ roughly width x 2.5 for correct aspect. Offer a limited palette for a graphic lo
 - `scripts/snapwright/`: dsl, brickify, validate, steps, render, book, exporters, pipeline
 - `assets/catalog.json`: parts and colours; `assets/viewer_template.html`
 - `references/design-dsl.md`: every DSL call with examples. Read before writing a design.
-- `references/geometry-and-checks.md`: units, connection rules, each check and how to fix it
+- `references/geometry-and-checks.md`: units, connection rules, repairs, each check and its fix,
+  model.json schema
 - `references/book-style.md`: book conventions and what to avoid imitating
 - `references/ip-and-naming.md`: subject choice, trademarks, disclaimers, selling designs

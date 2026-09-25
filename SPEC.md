@@ -26,7 +26,7 @@ reference (photo/sketch/text)
   → viewer.html (three.js)                      assets/viewer_template.html
   → instructions.pdf                            book.py
 ```
-Canonical artifact: `model.json` (schema `snapwright.model/0.1`, see
+Canonical artifact: `model.json` (schema `snapwright.model/0.2`; 0.1 still read; see
 `skill/snapwright/references/geometry-and-checks.md`). Every downstream output must be
 regenerable from `model.json` alone.
 
@@ -42,7 +42,9 @@ regenerable from `model.json` alone.
 - Book: cover, inventory, 4 steps/page with callouts and turn markers, finale with checks
 - Exports: LDraw (.ldr, STEP), BrickLink XML, Rebrickable CSV, CSV
 - Viewer: instanced three.js build playback, scrubber, checks + parts panels, downloads
-- Example: `examples/lighthouse` → 1,744 parts, 32.6 cm, 182 steps, PASS
+- Example: `examples/lighthouse` → 1,744 parts, 32.6 cm, 182 steps, PASS (v0.1)
+- After M1 (v0.2): lighthouse 1,760 parts, 184 steps, PASS, ~19 s CPU with book, PDF 4.9 MB;
+  `examples/keep` 5,068 parts in ~106 s; 85 tests (unit, fixtures, property, golden) in ~40 s
 
 ## 5. Milestones and acceptance criteria
 
@@ -101,18 +103,18 @@ regenerable from `model.json` alone.
 - Own visual identity; no manufacturer names or trade dress.
 
 ## 7. Known issues / backlog from v0.1
-1. Instruction PDF is ~10 MB for 1.7k parts: switch step images to JPEG-in-PDF or smaller
+1. (M1: 10.2 → 4.9 MB via indexed-colour images; M5 continues) Instruction PDF is ~10 MB for 1.7k parts: switch step images to JPEG-in-PDF or smaller
    indexed PNGs; cache repeated renders.
 2. Parts count is high for solid shapes (no hollowing yet) and tall tapers become plate stacks
    (no slopes yet).
-3. Step planner orders within a level by colour then row; should cluster spatially (k-means or
+3. (Done in M1: region-grown steps) Step planner orders within a level by colour then row; should cluster spatially (k-means or
    sweep) and prefer finishing one region before starting another.
-4. View choice is per level by centroid only; should score actual visibility of new parts in
+4. (Done in M1: id-buffer visibility per level, per-step turn when parts hide) View choice is per level by centroid only; should score actual visibility of new parts in
    each candidate view (render-mask based) and pick the best.
-5. `necks` metric is heuristic; replace with per-level min-cut on the connection graph.
+5. (Done in M1: max-flow min-cut per load) `necks` metric is heuristic; replace with per-level min-cut on the connection graph.
 6. Catalog availability is tiered, not verified, until `sync-catalog` runs with an API key.
-7. Mosaic: flat mode's base layer relies on colour tiles to bridge base plates; add an explicit
+7. (Done in M1: 2 staggered base layers, tested) Mosaic: flat mode's base layer relies on colour tiles to bridge base plates; add an explicit
    staggered base plate layer (or recommend a baseplate) and verify one structure.
-8. LDraw rotation/origin conventions need a round-trip test in LeoCAD.
+8. (M1: export/re-import round-trip test; LeoCAD screenshot check still in M2) LDraw rotation/origin conventions need a round-trip test in LeoCAD.
 9. Viewer has no step-by-step mode or new-part highlight yet.
 10. No CLI `compare` / reference scoring yet (M4).

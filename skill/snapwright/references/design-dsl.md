@@ -19,7 +19,9 @@ Coordinates: `x` and `z` in studs, `y` in plates, `y = 0` is the table. Cell cen
 | `paint(fn, color)` | recolour filled voxels only (stripes, eyes, windows) |
 | `carve(fn)` | remove voxels |
 | `mirror_x(about=None)` | copy left half to right (symmetric subjects) |
-| `mosaic(path, colors=None, mode="flat"|"upright", base_color=, depth=2, dither=False)` | photo to mosaic |
+| `mosaic(path, colors=None, mode="flat"|"upright", base_color=, depth=2, dither=False, base_layers=2)` | photo to mosaic; flat = `base_layers` plate layers + a picture layer (grid grows to fit) |
+| `grow_height(h)` | make the grid at least `h` plates tall |
+| `islands()` | voxel groups touching neither the ground nor the rest (must be empty to build) |
 
 `X, Y, Z` passed to lambdas are full numpy grids, so use `np.abs`, `np.hypot`, `&`, `|`.
 
