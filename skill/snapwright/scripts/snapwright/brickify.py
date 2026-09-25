@@ -79,8 +79,9 @@ class Packer:
         self.V = V
         self.no_tile = no_tile if no_tile is not None else np.zeros(V.shape, dtype=bool)
         self.no_brick = no_brick if no_brick is not None else np.zeros(V.shape, dtype=bool)
-        # cells that ended up in stranded parts last round: packed first, at any offset
-        self.priority = priority if priority is not None else np.zeros(V.shape, dtype=bool)
+        # stranded-group label per cell (0 = none): packed first, at any offset, and must
+        # join a cell outside their own group
+        self.priority = priority if priority is not None else np.zeros(V.shape, dtype=np.int32)
         self.rescued = 0
         self.palette = palette
         self.cat = catalog
@@ -143,7 +144,8 @@ class Packer:
             for y in range(y0, min(y0 + 3, NY)):
                 rem = filled[:, :, y] & (self.owner[:, :, y] < 0)
                 col = self.req[:, :, y]
-                if self.finish == "tiles" and self.tiles:
+                # no tiles on the table: nothing under them and no studs on top, so they would be loose
+                if self.finish == "tiles" and self.tiles and y > 0:
                     tmask = rem & self.top_exposed[:, :, y] & self.supported[:, :, y] & ~self.no_tile[:, :, y]
                     hang = rem & ~self.supported[:, :, y]
                     if hang.any():  # plates next to an overhang must be free to anchor it
@@ -195,7 +197,7 @@ class Packer:
             return
         start = len(self.parts)
         self._pack_layer(mask, col, y, h, types, pref)
-        if self.priority[:, :, y].any():
+        if (self.priority[:, :, y] > 0).any():
             for _ in range(4):  # a rescue can free a neighbour for the next one
                 if not self._rescue(start, col, y, h, types):
                     break
@@ -286,7 +288,7 @@ class Packer:
         shapes = _shapes(types)
         # phase 1: overhanging cells (and repair-priority cells), any anchor offset, must
         # include a supported cell; on the ground layer everything is supported
-        prio = free & self.priority[:, :, y]
+        prio = free & (self.priority[:, :, y] > 0)
         if y > 0 or prio.any():
             under = self.owner[:, :, y - 1] >= 0 if y > 0 else np.ones(free.shape, dtype=bool)
             # farthest-from-support first, so outer rings claim a path inward before inner rings
@@ -306,8 +308,28 @@ class Packer:
             fm = FitMaps(shapes, free, col, under)
             # a supported priority cell only counts as covered by a part that joins it to a
             # neighbour; a lone 1x1 there is what stranded it (left to phase 2 as a fallback)
+            prio_layer = self.priority[:, :, y]
+
+            def joining(x, z):
+                """Placements that join a supported priority cell to something outside its
+                own stranded group (the only kind that fixes it)."""
+                g = prio_layer[x, z]
+                return [o for o in fm.options(x, z, 2)
+                        if (prio_layer[o[1]:o[1] + o[3], o[2]:o[2] + o[4]] != g).any()]
+
             def options(x, z):
-                return fm.options(x, z, 2 if under[x, z] else 1)
+                if not under[x, z]:
+                    return fm.options(x, z)
+                return joining(x, z) or fm.options(x, z, 2)
+
+            def strands(a, b, ax, az, dx, dz):
+                """Would taking rectangle (ax, az, dx, dz) leave cell (a, b) no way to be
+                covered (overhang) or joined (priority cell)?"""
+                if not under[a, b]:
+                    return not fm.any_option_avoiding(a, b, ax, az, dx, dz)
+                had = joining(a, b)
+                return bool(had) and all(o[1] < ax + dx and ax < o[1] + o[3] and o[2] < az + dz
+                                         and az < o[2] + o[4] for o in had)
             # most constrained first (fewest ways to anchor), then farthest from support
             hanging = free & (~under | prio)
             hang = [tuple(c) for c in np.argwhere(hanging)]
@@ -325,8 +347,7 @@ class Packer:
                     stranded = 0
                     for a in range(max(0, ax - 1), min(free.shape[0], ax + dx + 1)):
                         for b in range(max(0, az - 1), min(free.shape[1], az + dz + 1)):
-                            if free[a, b] and hanging[a, b] and not fm.any_option_avoiding(
-                                    a, b, ax, az, dx, dz, 2 if under[a, b] else 1):
+                            if free[a, b] and hanging[a, b] and strands(a, b, ax, az, dx, dz):
                                 stranded += 1
                     free[ax:ax + dx, az:az + dz] = True
                     sc -= 40.0 * stranded
@@ -475,17 +496,31 @@ def _stranded(parts, shape):
     return occ, d, main, [p for p in parts if d.find(p["id"]) != main]
 
 
-def _repair(V, parts, shape, no_brick, no_tile, priority, recolor, trim=False):
+def floating_voxels(V: np.ndarray) -> np.ndarray:
+    """Design voxels in face-connected groups that never touch the ground. No packing can
+    hold these, and trimming them would silently delete a feature, so they are left for the
+    checks to fail and the designer to join."""
+    if _ndi is None:  # pragma: no cover
+        return np.zeros(V.shape, dtype=bool)
+    lab, _ = _ndi.label(V > 0)
+    grounded = np.unique(lab[:, :, 0])
+    return (lab > 0) & ~np.isin(lab, grounded[grounded > 0])
+
+
+def _repair(V, parts, shape, no_brick, no_tile, priority, recolor, trim=False, keep=None):
     """Every round: pack the cells of stranded parts first, at any offset, so they bridge into
     their neighbours, and stop using bricks around them so plates can interlock.
     Round with recolour: nudge visible cells of stranded parts to the adjacent main colour."""
     occ, d, main, bad = _stranded(parts, shape)
     NX, NZ, NY = shape
     zone = changed = 0
+    label = int(priority.max()) + 1
+    groups: dict = {}
     for p in bad:
+        g = groups.setdefault(d.find(p["id"]), label + len(groups))
         pr = priority[p["x"]:p["x"] + p["dx"], p["z"]:p["z"] + p["dz"], p["y"]:p["y"] + p["h"]]
-        zone += int((~pr).sum())
-        pr[...] = True
+        zone += int((pr != g).sum())
+        pr[...] = g             # latest group wins, so a group must join what's around it
         x0, x1 = max(0, p["x"] - 1), min(NX, p["x"] + p["dx"] + 1)
         z0, z1 = max(0, p["z"] - 1), min(NZ, p["z"] + p["dz"] + 1)
         c0 = (p["y"] // 3) * 3
@@ -504,7 +539,8 @@ def _repair(V, parts, shape, no_brick, no_tile, priority, recolor, trim=False):
             for x in range(p["x"], p["x"] + p["dx"]):
                 for z in range(p["z"], p["z"] + p["dz"]):
                     for y in range(p["y"], p["y"] + p["h"]):
-                        if y > 0 and V[x, z, y - 1] == 0 and V[x, z, y] != 0:
+                        if y > 0 and V[x, z, y - 1] == 0 and V[x, z, y] != 0 \
+                                and not (keep is not None and keep[x, z, y]):
                             V[x, z, y] = 0
                             changed -= 1  # negative = trimmed, tracked separately
             continue
@@ -543,11 +579,12 @@ def brickify(V, palette, catalog, seeds=8, finish="tiles", use_bricks=True, max_
     Returns (parts, stats, V_final) where V_final includes any repair recolouring."""
     from .validate import validate
     best = None
+    islands = floating_voxels(V)
     for s in range(seeds):
         W = V.copy()
         no_brick = np.zeros(V.shape, dtype=bool)
         no_tile = np.zeros(V.shape, dtype=bool)
-        priority = np.zeros(V.shape, dtype=bool)
+        priority = np.zeros(V.shape, dtype=np.int32)
         for rnd in range(repair_rounds + 1):
             parts = Packer(W, palette, catalog, seed=s, finish=finish, use_bricks=use_bricks,
                            max_len=max_len, no_brick=no_brick, no_tile=no_tile,
@@ -555,11 +592,14 @@ def brickify(V, palette, catalog, seeds=8, finish="tiles", use_bricks=True, max_
             stats = validate(parts, W.shape, catalog)
             if (stats["floating"] == 0 and stats["structures"] == 1) or rnd == repair_rounds:
                 break
-            ch, zone = _repair(W, parts, W.shape, no_brick, no_tile, priority, recolor=rnd in (2, 3),
+            ch, zone = _repair(W, parts, W.shape, no_brick, no_tile, priority, keep=islands,
+                               recolor=rnd in (2, 3),
                                trim=rnd >= 4)
             if ch == 0 and zone == 0 and rnd >= 4:
                 break
         stats.update(change_counts(V, W, palette))
+        stats["design_voxels"] = int((V > 0).sum())
+        stats["floating_voxels"] = int(islands.sum())
         changes = stats["recolored_cells"] + stats["trimmed_cells"] + stats["added_cells"]
         key = (stats["floating"], stats["structures"], len(stats["weak_parts"]), changes,
                -stats["links"], len(parts))

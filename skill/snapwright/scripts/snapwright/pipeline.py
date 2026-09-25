@@ -49,7 +49,14 @@ def preview(design, out, views=(0, 1, 2, 3), catalog=None, size=700):
     w, h, d = m.size_cm()
     print(f"{m.title}: {m.voxel_count():,} voxels, ~{w} x {d} x {h} cm (w x d x h), "
           f"colours: {', '.join(m.palette)}")
+    _warn_islands(m, print)
     return paths
+
+
+def _warn_islands(m, log):
+    for isl in m.islands():
+        log(f"  warning: {isl['voxels']} voxels at x {isl['x']}, z {isl['z']}, y {isl['y']} don't "
+            f"touch the rest of the model or the ground; join them or the build will fail")
 
 
 class Timer:
@@ -116,6 +123,7 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
     """Design model -> parts, checks and steps, in memory. Returns (model dict, built voxels)."""
     tm = timer or Timer()
     log(f"[1/6] design: {m.title} - {m.voxel_count():,} voxels on {m.NX}x{m.NZ}x{m.NY}")
+    _warn_islands(m, log)
 
     log("[2/6] brickify")
     parts, stats, V_final = brickify(m.V, m.palette, cat, seeds=seeds, finish=finish, log=log)

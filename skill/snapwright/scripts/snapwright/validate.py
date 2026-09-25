@@ -15,6 +15,7 @@ from __future__ import annotations
 import numpy as np
 
 STUD_MM, PLATE_MM = 8.0, 3.2
+MAX_TRIM_FRACTION = 0.01   # trimming more of the design than this means it needs support
 
 
 def part_mass_g(p) -> float:
@@ -191,6 +192,13 @@ def verdict(stats) -> tuple[bool, list[str]]:
         fails.append(f"{stats['floating']} floating parts")
     if stats["structures"] > 1:
         fails.append(f"{stats['structures']} separate structures")
+    if stats.get("floating_voxels"):
+        fails.append(f"{stats['floating_voxels']} design voxels don't touch the rest of the model "
+                     f"or the ground (join them in the design)")
+    removed = stats.get("trimmed_cells", 0)
+    if removed and removed > MAX_TRIM_FRACTION * max(1, stats.get("design_voxels", 0)):
+        fails.append(f"repairs trimmed {removed} design cells ({100 * removed / max(1, stats['design_voxels']):.1f}%); "
+                     f"add support in the design instead")
     if stats["com_margin_mm"] < 3:
         fails.append(f"centre of mass only {stats['com_margin_mm']} mm inside the footprint (tips over)")
     return (not fails), fails

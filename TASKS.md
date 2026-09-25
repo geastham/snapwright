@@ -12,7 +12,7 @@ across runs (model.json identical apart from `meta.created`).
 - [x] `--profile` flag: per-stage timings + cProfile dump
 - [ ] Unit tests for every module (catalog, dsl, brickify, validate, steps, render, book, exporters, pipeline/CLI)
 - [x] Regression fixtures in `tests/fixtures/` (circle-corner overhang conflict, ...)
-- [~] Property tests on random blobby models (generator + oracles done; pytest wrapper pending) (spheres, tubes, overhangs, 1-stud speckles, stair-step circles):
+- [x] Property tests on random blobby models (spheres, tubes, overhangs, 1-stud speckles, stair-step circles):
       no collisions; PASS implies every part reachable from ground; steps feasible in order
 - [x] Honest change counts: recoloured/trimmed computed from design vs built grid
 - [x] Transparent parts: cells behind/inside trans colours keep their colour
@@ -39,7 +39,15 @@ across runs (model.json identical apart from `meta.created`).
 - Stair-step corners competing for one neighbour stranded 1x1 columns (repair couldn't fix).
   New: stranded cells become priority cells (packed first, must join a neighbour) plus a
   lone-cell rescue pass. Fixtures blob_013, blob_082 (rescue collision regression).
-- Open: blobby seeds 180, 240, 266, 299 FAIL honestly after these fixes; investigate.
+- Repair oscillated on mirrored stranded groups (fix one side, strand the other). Stranded
+  groups are now labelled; priority cells must join a cell outside their own group, and the
+  lookahead uses the same rule. Fixture blob_180.
+- Trim repair deleted whole floating features (up to 208 voxels) and reported PASS. Design
+  voxels not connected to the ground are never trimmed and FAIL with a join-them message
+  (also warned at preview); trimming > 1% of the design FAILs. Fixture blob_082.
+- Tiles on the ground layer connect to nothing (loose pieces). No tiles at y = 0.
+- 300-design hunt: oracles clean; island-free FAILs 22 -> 8 (7 are honest >1% trims of
+  unsupported shelves, 1 floating part: blobby seed 66, open).
 
 ## Noted for later milestones
 - M6: evals.json eval 5 points at `examples/lighthouse/out/model.json`, which is no longer

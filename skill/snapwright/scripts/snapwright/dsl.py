@@ -160,6 +160,22 @@ class Model:
         return self
 
     # ---- info --------------------------------------------------------
+    def islands(self) -> list[dict]:
+        """Groups of filled voxels (face-connected) that don't touch the ground. Nothing can
+        hold these up, so the build will fail until they're joined to the rest."""
+        from scipy import ndimage
+        lab, n = ndimage.label(self.V > 0)
+        grounded = set(np.unique(lab[:, :, 0]).tolist()) - {0}
+        out = []
+        for i in range(1, n + 1):
+            if i in grounded:
+                continue
+            idx = np.argwhere(lab == i)
+            lo, hi = idx.min(0), idx.max(0) + 1
+            out.append({"voxels": int(len(idx)), "x": [int(lo[0]), int(hi[0])],
+                        "z": [int(lo[1]), int(hi[1])], "y": [int(lo[2]), int(hi[2])]})
+        return out
+
     def voxel_count(self) -> int:
         return int((self.V > 0).sum())
 

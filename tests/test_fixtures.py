@@ -1,5 +1,6 @@
 """Every regression fixture must build, satisfy the invariant oracles and PASS."""
 import glob
+import json
 import os
 
 import numpy as np
@@ -22,7 +23,7 @@ def load(path):
     for c in palette:
         m._idx(c)
     m.V[...] = V
-    return m, {"passed": True}
+    return m, json.loads(str(d["expect"])) if "expect" in d else {"passed": True}
 
 
 @pytest.mark.parametrize("path", CASES, ids=[os.path.basename(c) for c in CASES])
