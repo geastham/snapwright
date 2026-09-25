@@ -10,7 +10,7 @@ across runs (model.json identical apart from `meta.created`).
 - [x] Baseline reproduced
 - [x] Repo hygiene: .gitignore, stop tracking generated `out/` and `.DS_Store`
 - [x] `--profile` flag: per-stage timings + cProfile dump
-- [~] Unit tests for every module (validate, steps, exporters done; (catalog, dsl, brickify, validate, steps, render, book, exporters, pipeline/CLI)
+- [x] Unit tests for every module (catalog, dsl, brickify, validate, steps, render, book, exporters, pipeline/CLI)
 - [x] Regression fixtures in `tests/fixtures/` (circle-corner overhang conflict, ...)
 - [x] Property tests on random blobby models (spheres, tubes, overhangs, 1-stud speckles, stair-step circles):
       no collisions; PASS implies every part reachable from ground; steps feasible in order
@@ -28,7 +28,7 @@ across runs (model.json identical apart from `meta.created`).
 - [x] §7.1 PDF size: 10.2 MB -> 4.9 MB (indexed-colour images; M5 pushes further)
 - [x] Performance: lighthouse with book 49 s -> ~19 s CPU; `make bench` (examples/keep, 5,068 parts,
       PASS) 106 s CPU with book (brickify 9 s, steps 22 s, book 74 s)
-- [ ] Golden test on the lighthouse (parts ± 5 %, PASS, deterministic); `pytest -q` < 60 s
+- [x] Golden test on the lighthouse (parts ± 5 %, PASS, deterministic across processes); 84 tests in 40 s
 - [ ] SKILL.md / references / SPEC / README updated; outputs visually inspected
 - [ ] PR opened with Decisions section; run summary posted
 
