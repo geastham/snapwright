@@ -30,7 +30,7 @@ across runs (model.json identical apart from `meta.created`).
       PASS) 106 s CPU with book (brickify 9 s, steps 22 s, book 74 s)
 - [x] Golden test on the lighthouse (parts ± 5 %, PASS, deterministic across processes); 84 tests in 40 s
 - [x] SKILL.md / references / SPEC / README updated; book pages, finale and viewer inspected (PNG)
-- [ ] PR opened with Decisions section; run summary posted
+- [x] PR opened with Decisions section (https://github.com/geastham/snapwright/pull/1); run summary posted
 
 ## Found so far
 - Steps: deferred overhangs were resolved in one pass, so a part whose support was itself
