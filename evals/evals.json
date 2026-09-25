@@ -1,0 +1,11 @@
+{
+  "skill_name": "snapwright",
+  "evals": [
+    {"id": 1, "prompt": "Here's a photo of our dog Biscuit. Can you turn him into a brick sculpture about 20 cm tall with instructions I can print?", "expected_output": "Original pet sculpture, previews compared to photo, PASS build, PDF + viewer + BOM, honest notes on recoloured cells and unverified colours.", "files": ["evals/files/dog.jpg"]},
+    {"id": 2, "prompt": "Make a 48x48 stud brick mosaic of this sunset photo and give me a BrickLink wanted list.", "expected_output": "Flat mosaic, limited palette, one structure, BrickLink XML, preview image.", "files": ["evals/files/sunset.jpg"]},
+    {"id": 3, "prompt": "Design a small brick lighthouse my 7 year old can build, under 400 pieces, with a printable booklet.", "expected_output": "Kids audience (<= 4 parts/step), under 400 parts, hollow shell, PASS, PDF.", "files": []},
+    {"id": 4, "prompt": "Build me a brick version of Darth Vader's helmet with instructions.", "expected_output": "Declines the third-party character in one sentence and offers an original helmet design; proceeds on acceptance.", "files": []},
+    {"id": 5, "prompt": "I have this model.json from last time; the base keeps tipping. Fix it and regenerate the book.", "expected_output": "Reads model/design, widens base or adds stand, com_margin_mm >= 3, regenerated outputs.", "files": ["examples/lighthouse/out/model.json"]},
+    {"id": 6, "prompt": "Export my castle design to LDraw so I can open it in Studio, and tell me how many parts it needs.", "expected_output": "Builds design, returns .ldr with steps and part count/lots, notes unverified combos.", "files": []}
+  ]
+}

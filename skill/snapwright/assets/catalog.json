@@ -1,0 +1,506 @@
+{
+ "schema": "snapwright.catalog/0.1",
+ "note": "Part IDs follow BrickLink/LDraw numbering. 'core' colours are widely produced in the basic brick/plate/tile moulds listed here; 'limited' colours exist but not in every mould. Run `sw.py sync-catalog` with a Rebrickable API key to replace this with verified part-colour availability before publishing a parts list.",
+ "units": {
+  "stud_mm": 8.0,
+  "plate_mm": 3.2,
+  "brick_plates": 3,
+  "ldu_per_stud": 20,
+  "ldu_per_plate": 8
+ },
+ "colors": {
+  "white": {
+   "name": "White",
+   "hex": "#F2F3F2",
+   "bricklink": 1,
+   "ldraw": 15,
+   "rebrickable": 15,
+   "tier": "core"
+  },
+  "black": {
+   "name": "Black",
+   "hex": "#1B2A34",
+   "bricklink": 11,
+   "ldraw": 0,
+   "rebrickable": 0,
+   "tier": "core"
+  },
+  "red": {
+   "name": "Red",
+   "hex": "#B40000",
+   "bricklink": 5,
+   "ldraw": 4,
+   "rebrickable": 4,
+   "tier": "core"
+  },
+  "blue": {
+   "name": "Blue",
+   "hex": "#1E5AA8",
+   "bricklink": 7,
+   "ldraw": 1,
+   "rebrickable": 1,
+   "tier": "core"
+  },
+  "yellow": {
+   "name": "Yellow",
+   "hex": "#FAC80A",
+   "bricklink": 3,
+   "ldraw": 14,
+   "rebrickable": 14,
+   "tier": "core"
+  },
+  "green": {
+   "name": "Green",
+   "hex": "#00852B",
+   "bricklink": 6,
+   "ldraw": 2,
+   "rebrickable": 2,
+   "tier": "core"
+  },
+  "orange": {
+   "name": "Orange",
+   "hex": "#D67923",
+   "bricklink": 4,
+   "ldraw": 25,
+   "rebrickable": 25,
+   "tier": "core"
+  },
+  "tan": {
+   "name": "Tan",
+   "hex": "#D7BA8C",
+   "bricklink": 2,
+   "ldraw": 19,
+   "rebrickable": 19,
+   "tier": "core"
+  },
+  "dark_tan": {
+   "name": "Dark Tan",
+   "hex": "#897D62",
+   "bricklink": 69,
+   "ldraw": 28,
+   "rebrickable": 28,
+   "tier": "core"
+  },
+  "reddish_brown": {
+   "name": "Reddish Brown",
+   "hex": "#5F3109",
+   "bricklink": 88,
+   "ldraw": 70,
+   "rebrickable": 70,
+   "tier": "core"
+  },
+  "light_bluish_gray": {
+   "name": "Light Bluish Gray",
+   "hex": "#A0A5A9",
+   "bricklink": 86,
+   "ldraw": 71,
+   "rebrickable": 71,
+   "tier": "core"
+  },
+  "dark_bluish_gray": {
+   "name": "Dark Bluish Gray",
+   "hex": "#646464",
+   "bricklink": 85,
+   "ldraw": 72,
+   "rebrickable": 72,
+   "tier": "core"
+  },
+  "dark_blue": {
+   "name": "Dark Blue",
+   "hex": "#19325A",
+   "bricklink": 63,
+   "ldraw": 272,
+   "rebrickable": 272,
+   "tier": "core"
+  },
+  "dark_red": {
+   "name": "Dark Red",
+   "hex": "#720012",
+   "bricklink": 59,
+   "ldraw": 320,
+   "rebrickable": 320,
+   "tier": "core"
+  },
+  "dark_green": {
+   "name": "Dark Green",
+   "hex": "#00451A",
+   "bricklink": 80,
+   "ldraw": 288,
+   "rebrickable": 288,
+   "tier": "core"
+  },
+  "lime": {
+   "name": "Lime",
+   "hex": "#A5CA18",
+   "bricklink": 34,
+   "ldraw": 27,
+   "rebrickable": 27,
+   "tier": "limited"
+  },
+  "medium_azure": {
+   "name": "Medium Azure",
+   "hex": "#3EC2DD",
+   "bricklink": 156,
+   "ldraw": 322,
+   "rebrickable": 322,
+   "tier": "limited"
+  },
+  "sand_green": {
+   "name": "Sand Green",
+   "hex": "#708E7C",
+   "bricklink": 48,
+   "ldraw": 378,
+   "rebrickable": 378,
+   "tier": "limited"
+  },
+  "bright_light_orange": {
+   "name": "Bright Light Orange",
+   "hex": "#FCAC00",
+   "bricklink": 110,
+   "ldraw": 191,
+   "rebrickable": 191,
+   "tier": "limited"
+  },
+  "pearl_gold": {
+   "name": "Pearl Gold",
+   "hex": "#AA7F2E",
+   "bricklink": 115,
+   "ldraw": 297,
+   "rebrickable": 297,
+   "tier": "limited"
+  },
+  "trans_clear": {
+   "name": "Trans-Clear",
+   "hex": "#E6EEF2",
+   "bricklink": 12,
+   "ldraw": 47,
+   "rebrickable": 47,
+   "tier": "limited"
+  },
+  "trans_yellow": {
+   "name": "Trans-Yellow",
+   "hex": "#F5CD2F",
+   "bricklink": 19,
+   "ldraw": 46,
+   "rebrickable": 46,
+   "tier": "limited"
+  },
+  "trans_red": {
+   "name": "Trans-Red",
+   "hex": "#C91A09",
+   "bricklink": 17,
+   "ldraw": 36,
+   "rebrickable": 36,
+   "tier": "limited"
+  }
+ },
+ "parts": [
+  {
+   "id": "3008",
+   "name": "Brick 1 x 8",
+   "kind": "brick",
+   "L": 8,
+   "W": 1,
+   "h": 3,
+   "studs": true
+  },
+  {
+   "id": "3009",
+   "name": "Brick 1 x 6",
+   "kind": "brick",
+   "L": 6,
+   "W": 1,
+   "h": 3,
+   "studs": true
+  },
+  {
+   "id": "3010",
+   "name": "Brick 1 x 4",
+   "kind": "brick",
+   "L": 4,
+   "W": 1,
+   "h": 3,
+   "studs": true
+  },
+  {
+   "id": "3622",
+   "name": "Brick 1 x 3",
+   "kind": "brick",
+   "L": 3,
+   "W": 1,
+   "h": 3,
+   "studs": true
+  },
+  {
+   "id": "3004",
+   "name": "Brick 1 x 2",
+   "kind": "brick",
+   "L": 2,
+   "W": 1,
+   "h": 3,
+   "studs": true
+  },
+  {
+   "id": "3005",
+   "name": "Brick 1 x 1",
+   "kind": "brick",
+   "L": 1,
+   "W": 1,
+   "h": 3,
+   "studs": true
+  },
+  {
+   "id": "3007",
+   "name": "Brick 2 x 8",
+   "kind": "brick",
+   "L": 8,
+   "W": 2,
+   "h": 3,
+   "studs": true
+  },
+  {
+   "id": "2456",
+   "name": "Brick 2 x 6",
+   "kind": "brick",
+   "L": 6,
+   "W": 2,
+   "h": 3,
+   "studs": true
+  },
+  {
+   "id": "3001",
+   "name": "Brick 2 x 4",
+   "kind": "brick",
+   "L": 4,
+   "W": 2,
+   "h": 3,
+   "studs": true
+  },
+  {
+   "id": "3002",
+   "name": "Brick 2 x 3",
+   "kind": "brick",
+   "L": 3,
+   "W": 2,
+   "h": 3,
+   "studs": true
+  },
+  {
+   "id": "3003",
+   "name": "Brick 2 x 2",
+   "kind": "brick",
+   "L": 2,
+   "W": 2,
+   "h": 3,
+   "studs": true
+  },
+  {
+   "id": "3460",
+   "name": "Plate 1 x 8",
+   "kind": "plate",
+   "L": 8,
+   "W": 1,
+   "h": 1,
+   "studs": true
+  },
+  {
+   "id": "3666",
+   "name": "Plate 1 x 6",
+   "kind": "plate",
+   "L": 6,
+   "W": 1,
+   "h": 1,
+   "studs": true
+  },
+  {
+   "id": "3710",
+   "name": "Plate 1 x 4",
+   "kind": "plate",
+   "L": 4,
+   "W": 1,
+   "h": 1,
+   "studs": true
+  },
+  {
+   "id": "3623",
+   "name": "Plate 1 x 3",
+   "kind": "plate",
+   "L": 3,
+   "W": 1,
+   "h": 1,
+   "studs": true
+  },
+  {
+   "id": "3023",
+   "name": "Plate 1 x 2",
+   "kind": "plate",
+   "L": 2,
+   "W": 1,
+   "h": 1,
+   "studs": true
+  },
+  {
+   "id": "3024",
+   "name": "Plate 1 x 1",
+   "kind": "plate",
+   "L": 1,
+   "W": 1,
+   "h": 1,
+   "studs": true
+  },
+  {
+   "id": "3034",
+   "name": "Plate 2 x 8",
+   "kind": "plate",
+   "L": 8,
+   "W": 2,
+   "h": 1,
+   "studs": true
+  },
+  {
+   "id": "3795",
+   "name": "Plate 2 x 6",
+   "kind": "plate",
+   "L": 6,
+   "W": 2,
+   "h": 1,
+   "studs": true
+  },
+  {
+   "id": "3020",
+   "name": "Plate 2 x 4",
+   "kind": "plate",
+   "L": 4,
+   "W": 2,
+   "h": 1,
+   "studs": true
+  },
+  {
+   "id": "3021",
+   "name": "Plate 2 x 3",
+   "kind": "plate",
+   "L": 3,
+   "W": 2,
+   "h": 1,
+   "studs": true
+  },
+  {
+   "id": "3022",
+   "name": "Plate 2 x 2",
+   "kind": "plate",
+   "L": 2,
+   "W": 2,
+   "h": 1,
+   "studs": true
+  },
+  {
+   "id": "3035",
+   "name": "Plate 4 x 8",
+   "kind": "plate",
+   "L": 8,
+   "W": 4,
+   "h": 1,
+   "studs": true
+  },
+  {
+   "id": "3032",
+   "name": "Plate 4 x 6",
+   "kind": "plate",
+   "L": 6,
+   "W": 4,
+   "h": 1,
+   "studs": true
+  },
+  {
+   "id": "3031",
+   "name": "Plate 4 x 4",
+   "kind": "plate",
+   "L": 4,
+   "W": 4,
+   "h": 1,
+   "studs": true
+  },
+  {
+   "id": "4162",
+   "name": "Tile 1 x 8",
+   "kind": "tile",
+   "L": 8,
+   "W": 1,
+   "h": 1,
+   "studs": false
+  },
+  {
+   "id": "6636",
+   "name": "Tile 1 x 6",
+   "kind": "tile",
+   "L": 6,
+   "W": 1,
+   "h": 1,
+   "studs": false
+  },
+  {
+   "id": "2431",
+   "name": "Tile 1 x 4",
+   "kind": "tile",
+   "L": 4,
+   "W": 1,
+   "h": 1,
+   "studs": false
+  },
+  {
+   "id": "63864",
+   "name": "Tile 1 x 3",
+   "kind": "tile",
+   "L": 3,
+   "W": 1,
+   "h": 1,
+   "studs": false
+  },
+  {
+   "id": "3069b",
+   "name": "Tile 1 x 2",
+   "kind": "tile",
+   "L": 2,
+   "W": 1,
+   "h": 1,
+   "studs": false
+  },
+  {
+   "id": "3070b",
+   "name": "Tile 1 x 1",
+   "kind": "tile",
+   "L": 1,
+   "W": 1,
+   "h": 1,
+   "studs": false
+  },
+  {
+   "id": "87079",
+   "name": "Tile 2 x 4",
+   "kind": "tile",
+   "L": 4,
+   "W": 2,
+   "h": 1,
+   "studs": false
+  },
+  {
+   "id": "26603",
+   "name": "Tile 2 x 3",
+   "kind": "tile",
+   "L": 3,
+   "W": 2,
+   "h": 1,
+   "studs": false
+  },
+  {
+   "id": "3068b",
+   "name": "Tile 2 x 2",
+   "kind": "tile",
+   "L": 2,
+   "W": 2,
+   "h": 1,
+   "studs": false
+  }
+ ],
+ "availability": {}
+}

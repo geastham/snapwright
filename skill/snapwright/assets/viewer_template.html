@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>__TITLE__</title>
+<style>
+  :root { --bg:#f1efe9; --ink:#1d2327; --soft:#6b7479; --card:rgba(255,255,255,.86); --line:rgba(0,0,0,.08); --acc:#ff4628; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#101315; --ink:#eef1f2; --soft:#98a2a7; --card:rgba(26,31,34,.86); --line:rgba(255,255,255,.08); } }
+  :root[data-theme="dark"] { --bg:#101315; --ink:#eef1f2; --soft:#98a2a7; --card:rgba(26,31,34,.86); --line:rgba(255,255,255,.08); }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); overflow:hidden;
+    font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  :root { padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px); }
+  canvas { position:fixed; inset:0; width:100vw; height:100vh; display:block; touch-action:none; }
+  .ui { position:fixed; z-index:2; }
+  header { top:calc(18px + env(safe-area-inset-top,0px)); left:20px; }
+  header h1 { margin:0; font-size:clamp(24px,4vw,40px); letter-spacing:-.02em; }
+  header p { margin:2px 0 0; color:var(--soft); }
+  nav { top:calc(18px + env(safe-area-inset-top,0px)); right:20px; display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; max-width:55vw; }
+  button { font:inherit; font-weight:600; font-size:13px; color:var(--ink); background:var(--card); border:1px solid var(--line);
+    border-radius:8px; padding:7px 12px; cursor:pointer; }
+  button.on { background:var(--ink); color:var(--bg); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; backdrop-filter:blur(10px); }
+  #checks, #bom { display:none; padding:14px 16px; max-height:60vh; overflow:auto; width:min(340px,86vw); }
+  #checks { left:20px; bottom:calc(92px + env(safe-area-inset-bottom,0px)); }
+  #bom { right:20px; top:74px; }
+  #checks.open, #bom.open { display:block; }
+  h2 { margin:0 0 8px; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--soft); }
+  ul { margin:0; padding-left:18px; } li { margin:3px 0; }
+  .row { display:grid; grid-template-columns:14px 1fr auto; gap:8px; align-items:center; font-size:12.5px; padding:2px 0; }
+  .sw { width:12px; height:12px; border-radius:3px; border:1px solid rgba(0,0,0,.2); }
+  footer { left:50%; transform:translateX(-50%); bottom:calc(18px + env(safe-area-inset-bottom,0px)); display:flex; gap:10px; align-items:center;
+    padding:10px 14px; width:min(720px,94vw); }
+  footer input { flex:1; accent-color:var(--acc); }
+  .note { font-size:11.5px; color:var(--soft); margin-top:10px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<header class="ui"><h1 id="title"></h1><p id="sub"></p></header>
+<nav class="ui">
+  <button id="bChecks">Checks</button><button id="bParts">Parts</button><button id="bTheme">Theme</button>
+</nav>
+<aside class="ui card" id="checks"><h2>Checked in software</h2><ul id="checkList"></ul>
+  <div class="note" id="disc"></div></aside>
+<aside class="ui card" id="bom"><h2>Parts list</h2><div id="bomList"></div>
+  <div style="display:flex;gap:6px;margin-top:10px"><button id="dlXml">BrickLink XML</button><button id="dlCsv">CSV</button></div></aside>
+<footer class="ui card">
+  <button id="bPlay">Pause</button>
+  <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Build progress">
+  <span>Step <b id="now">0</b>/<span id="tot">0</span></span>
+</footer>
+<script id="model" type="application/json">__MODEL_JSON__</script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const M = JSON.parse(document.getElementById('model').textContent);
+const $ = id => document.getElementById(id);
+const S = 8, P = 3.2;             // mm per stud, per plate
+const parts = M.parts, NSTEP = M.steps.length;
+$('title').textContent = M.meta.title;
+$('sub').textContent = `${M.stats.parts.toLocaleString()} parts · ${M.stats.height_cm} cm · ${NSTEP} steps`;
+$('tot').textContent = NSTEP;
+$('disc').textContent = M.meta.disclaimer || '';
+
+// ---------- scene ----------
+const canvas = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(35, 1, 1, 5000);
+const ctl = new OrbitControls(cam, canvas); ctl.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x445566, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 2.2); sun.position.set(300, 600, 400); scene.add(sun);
+const [NX, NZ, NY] = M.grid.shape;
+const cx = NX * S / 2, cz = NZ * S / 2, H = NY * P;
+cam.position.set(cx + H * 1.4 + 120, H * 0.9 + 60, cz + H * 1.4 + 120);
+ctl.target.set(cx, H * 0.42, cz);
+const ground = new THREE.Mesh(new THREE.CircleGeometry(Math.max(NX, NZ) * S, 64),
+  new THREE.MeshStandardMaterial({ color: 0x888888, transparent: true, opacity: .12 }));
+ground.rotation.x = -Math.PI / 2; ground.position.set(cx, -0.05, cz); scene.add(ground);
+
+// ---------- instanced parts ----------
+const order = parts.map((p, i) => i).sort((a, b) => parts[a].step - parts[b].step || parts[a].y - parts[b].y);
+const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+const mat = new THREE.MeshStandardMaterial({ roughness: .45, metalness: 0 });
+const boxes = new THREE.InstancedMesh(boxGeo, mat, parts.length);
+const studGeo = new THREE.CylinderGeometry(2.4, 2.4, 1.8, 16);
+const studList = [];
+for (const i of order) { const p = parts[i]; if (!p.studs) continue;
+  for (let a = 0; a < p.dx; a++) for (let b = 0; b < p.dz; b++) studList.push([i, a, b]); }
+const studs = new THREE.InstancedMesh(studGeo, mat, studList.length);
+const col = new THREE.Color(), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3();
+const hex = p => M.colors[p.color].hex;
+order.forEach((i, k) => boxes.setColorAt(k, col.set(hex(parts[i]))));
+studList.forEach(([i], k) => studs.setColorAt(k, col.set(hex(parts[i]))));
+scene.add(boxes, studs);
+const gap = 0.12;
+function place(t) {                 // t = build time in steps (fractional)
+  let nb = 0, ns = 0;
+  for (const i of order) { const p = parts[i];
+    const local = t - (p.step - 1); if (local <= 0) break;
+    const drop = Math.max(0, 1 - local * 1.6) ** 2 * 60;
+    v.set((p.x + p.dx / 2) * S, (p.y + p.h / 2) * P + drop, (p.z + p.dz / 2) * S);
+    sc.set(p.dx * S - gap, p.h * P - gap, p.dz * S - gap);
+    boxes.setMatrixAt(nb++, m4.compose(v, q, sc));
+  }
+  boxes.count = nb;
+  for (const [i, a, b] of studList) { const p = parts[i];
+    const local = t - (p.step - 1); if (local <= 0) break;
+    const drop = Math.max(0, 1 - local * 1.6) ** 2 * 60;
+    v.set((p.x + a + .5) * S, (p.y + p.h) * P + .9 + drop, (p.z + b + .5) * S);
+    studs.setMatrixAt(ns++, m4.compose(v, q, sc.set(1, 1, 1)));
+  }
+  studs.count = ns;
+  boxes.instanceMatrix.needsUpdate = studs.instanceMatrix.needsUpdate = true;
+}
+
+// ---------- playback ----------
+let T = 0, playing = true;
+const rate = Math.max(1.2, NSTEP / 40);  // whole build in ~40 s
+$('bPlay').onclick = () => { playing = !playing; $('bPlay').textContent = playing ? 'Pause' : 'Play'; if (playing && T >= NSTEP + 1) T = 0; };
+$('scrub').oninput = e => { T = (+e.target.value / 1000) * (NSTEP + 1); playing = false; $('bPlay').textContent = 'Play'; };
+function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+let last = performance.now();
+renderer.setAnimationLoop(now => {
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (playing) { T = Math.min(NSTEP + 1, T + dt * rate); if (T >= NSTEP + 1) { playing = false; $('bPlay').textContent = 'Replay'; } }
+  place(T);
+  $('now').textContent = Math.min(NSTEP, Math.floor(T));
+  if (playing) $('scrub').value = Math.round(T / (NSTEP + 1) * 1000);
+  ctl.update(); renderer.render(scene, cam);
+});
+
+// ---------- panels ----------
+const st = M.stats;
+$('checkList').innerHTML = [
+  `${st.parts.toLocaleString()} parts in ${st.unique_lots} lots`,
+  `${st.connections.toLocaleString()} stud connections, ${st.structures} structure`,
+  `${st.collisions} collisions, ${st.floating} floating parts`,
+  `${st.weak_parts.length} single-stud joints`,
+  `Centre of mass ${st.com_margin_mm} mm inside the footprint`,
+  `≈ ${(st.mass_g / 1000).toFixed(2)} kg, ${st.width_cm} × ${st.depth_cm} × ${st.height_cm} cm`,
+  st.unverified_combos.length ? `${st.unverified_combos.length} part-colour combos to verify` : 'All part-colour combos in the catalog',
+].map(t => `<li>${t}</li>`).join('');
+const byColor = {};
+for (const [pid, c, qn] of M.bom) (byColor[c] ||= []).push([pid, qn]);
+$('bomList').innerHTML = Object.entries(byColor).map(([c, rows]) =>
+  `<div style="margin:8px 0 2px;font-weight:700;display:flex;gap:6px;align-items:center"><span class="sw" style="background:${M.colors[c].hex}"></span>${M.colors[c].name}</div>` +
+  rows.map(([pid, qn]) => `<div class="row"><span></span><span>${M.catalog_names[pid]} <span style="color:var(--soft)">#${pid}</span></span><b>${qn}</b></div>`).join('')).join('');
+const dl = (name, text, type) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); };
+$('dlXml').onclick = () => dl(`${M.meta.slug}-bricklink.xml`, '<INVENTORY>\n' + M.bom.map(([pid, c, qn]) =>
+  `  <ITEM><ITEMTYPE>P</ITEMTYPE><ITEMID>${pid}</ITEMID><COLOR>${M.colors[c].bricklink}</COLOR><MINQTY>${qn}</MINQTY></ITEM>`).join('\n') + '\n</INVENTORY>\n', 'application/xml');
+$('dlCsv').onclick = () => dl(`${M.meta.slug}-parts.csv`, 'Part ID,Part,Colour,Qty\n' + M.bom.map(([pid, c, qn]) =>
+  `${pid},"${M.catalog_names[pid]}",${M.colors[c].name},${qn}`).join('\n') + '\n', 'text/csv');
+const tog = (b, el) => { $(el).classList.toggle('open'); $(b).classList.toggle('on'); };
+$('bChecks').onclick = () => tog('bChecks', 'checks');
+$('bParts').onclick = () => tog('bParts', 'bom');
+$('bTheme').onclick = () => { const r = document.documentElement; const dark = getComputedStyle(r).getPropertyValue('--bg').trim() === '#101315';
+  r.dataset.theme = dark ? 'light' : 'dark'; };
+if (innerWidth > 1100) tog('bChecks', 'checks');
+</script>
+</body>
+</html>
