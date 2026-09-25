@@ -1,6 +1,6 @@
 {
- "schema": "snapwright.catalog/0.1",
- "note": "Part IDs follow BrickLink/LDraw numbering. 'core' colours are widely produced in the basic brick/plate/tile moulds listed here; 'limited' colours exist but not in every mould. Run `sw.py sync-catalog` with a Rebrickable API key to replace this with verified part-colour availability before publishing a parts list.",
+ "schema": "snapwright.catalog/0.2",
+ "note": "Part IDs follow BrickLink/LDraw numbering. 'core' colours are widely produced in the basic brick/plate/tile moulds listed here; 'limited' colours exist but not in every mould. Run `sw.py sync-catalog` with a Rebrickable API key to replace this with verified part-colour availability before publishing a parts list. Schema 0.2 adds connection metadata: `top` / `bottom` list the part's cells (i along L from the back/high row, j along W) that have a stud on top / take a stud underneath ('all' or 'none' for simple parts); `shape` is box, slope, slope_inv or round; `ldraw` is the LDraw file and `ldraw_origin` where its origin sits (top: top centre; stud_row_top: top centre of the back row; bottom: bottom centre). `auto` parts may be placed by the surface-shaping pass.",
  "units": {
   "stud_mm": 8.0,
   "plate_mm": 3.2,
@@ -202,7 +202,12 @@
    "L": 8,
    "W": 1,
    "h": 3,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3008.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3009",
@@ -211,7 +216,12 @@
    "L": 6,
    "W": 1,
    "h": 3,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3009.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3010",
@@ -220,7 +230,12 @@
    "L": 4,
    "W": 1,
    "h": 3,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3010.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3622",
@@ -229,7 +244,12 @@
    "L": 3,
    "W": 1,
    "h": 3,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3622.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3004",
@@ -238,7 +258,12 @@
    "L": 2,
    "W": 1,
    "h": 3,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3004.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3005",
@@ -247,7 +272,12 @@
    "L": 1,
    "W": 1,
    "h": 3,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3005.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3007",
@@ -256,7 +286,12 @@
    "L": 8,
    "W": 2,
    "h": 3,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3007.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "2456",
@@ -265,7 +300,12 @@
    "L": 6,
    "W": 2,
    "h": 3,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "2456.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3001",
@@ -274,7 +314,12 @@
    "L": 4,
    "W": 2,
    "h": 3,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3001.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3002",
@@ -283,7 +328,12 @@
    "L": 3,
    "W": 2,
    "h": 3,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3002.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3003",
@@ -292,7 +342,12 @@
    "L": 2,
    "W": 2,
    "h": 3,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3003.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3460",
@@ -301,7 +356,12 @@
    "L": 8,
    "W": 1,
    "h": 1,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3460.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3666",
@@ -310,7 +370,12 @@
    "L": 6,
    "W": 1,
    "h": 1,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3666.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3710",
@@ -319,7 +384,12 @@
    "L": 4,
    "W": 1,
    "h": 1,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3710.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3623",
@@ -328,7 +398,12 @@
    "L": 3,
    "W": 1,
    "h": 1,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3623.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3023",
@@ -337,7 +412,12 @@
    "L": 2,
    "W": 1,
    "h": 1,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3023.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3024",
@@ -346,7 +426,12 @@
    "L": 1,
    "W": 1,
    "h": 1,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3024.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3034",
@@ -355,7 +440,12 @@
    "L": 8,
    "W": 2,
    "h": 1,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3034.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3795",
@@ -364,7 +454,12 @@
    "L": 6,
    "W": 2,
    "h": 1,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3795.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3020",
@@ -373,7 +468,12 @@
    "L": 4,
    "W": 2,
    "h": 1,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3020.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3021",
@@ -382,7 +482,12 @@
    "L": 3,
    "W": 2,
    "h": 1,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3021.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3022",
@@ -391,7 +496,12 @@
    "L": 2,
    "W": 2,
    "h": 1,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3022.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3035",
@@ -400,7 +510,12 @@
    "L": 8,
    "W": 4,
    "h": 1,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3035.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3032",
@@ -409,7 +524,12 @@
    "L": 6,
    "W": 4,
    "h": 1,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3032.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3031",
@@ -418,7 +538,12 @@
    "L": 4,
    "W": 4,
    "h": 1,
-   "studs": true
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3031.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "4162",
@@ -427,7 +552,12 @@
    "L": 8,
    "W": 1,
    "h": 1,
-   "studs": false
+   "studs": false,
+   "shape": "box",
+   "top": "none",
+   "bottom": "all",
+   "ldraw": "4162.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "6636",
@@ -436,7 +566,12 @@
    "L": 6,
    "W": 1,
    "h": 1,
-   "studs": false
+   "studs": false,
+   "shape": "box",
+   "top": "none",
+   "bottom": "all",
+   "ldraw": "6636.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "2431",
@@ -445,7 +580,12 @@
    "L": 4,
    "W": 1,
    "h": 1,
-   "studs": false
+   "studs": false,
+   "shape": "box",
+   "top": "none",
+   "bottom": "all",
+   "ldraw": "2431.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "63864",
@@ -454,7 +594,12 @@
    "L": 3,
    "W": 1,
    "h": 1,
-   "studs": false
+   "studs": false,
+   "shape": "box",
+   "top": "none",
+   "bottom": "all",
+   "ldraw": "63864.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3069b",
@@ -463,7 +608,12 @@
    "L": 2,
    "W": 1,
    "h": 1,
-   "studs": false
+   "studs": false,
+   "shape": "box",
+   "top": "none",
+   "bottom": "all",
+   "ldraw": "3069b.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3070b",
@@ -472,7 +622,12 @@
    "L": 1,
    "W": 1,
    "h": 1,
-   "studs": false
+   "studs": false,
+   "shape": "box",
+   "top": "none",
+   "bottom": "all",
+   "ldraw": "3070b.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "87079",
@@ -481,7 +636,12 @@
    "L": 4,
    "W": 2,
    "h": 1,
-   "studs": false
+   "studs": false,
+   "shape": "box",
+   "top": "none",
+   "bottom": "all",
+   "ldraw": "87079.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "26603",
@@ -490,7 +650,12 @@
    "L": 3,
    "W": 2,
    "h": 1,
-   "studs": false
+   "studs": false,
+   "shape": "box",
+   "top": "none",
+   "bottom": "all",
+   "ldraw": "26603.dat",
+   "ldraw_origin": "top"
   },
   {
    "id": "3068b",
@@ -499,7 +664,314 @@
    "L": 2,
    "W": 2,
    "h": 1,
-   "studs": false
+   "studs": false,
+   "shape": "box",
+   "top": "none",
+   "bottom": "all",
+   "ldraw": "3068b.dat",
+   "ldraw_origin": "top"
+  },
+  {
+   "id": "3958",
+   "name": "Plate 6 x 6",
+   "kind": "plate",
+   "L": 6,
+   "W": 6,
+   "h": 1,
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3958.dat",
+   "ldraw_origin": "top"
+  },
+  {
+   "id": "3036",
+   "name": "Plate 6 x 8",
+   "kind": "plate",
+   "L": 8,
+   "W": 6,
+   "h": 1,
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3036.dat",
+   "ldraw_origin": "top"
+  },
+  {
+   "id": "41539",
+   "name": "Plate 8 x 8",
+   "kind": "plate",
+   "L": 8,
+   "W": 8,
+   "h": 1,
+   "studs": true,
+   "shape": "box",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "41539.dat",
+   "ldraw_origin": "top"
+  },
+  {
+   "id": "3040",
+   "name": "Slope 45 2 x 1",
+   "kind": "slope",
+   "L": 2,
+   "W": 1,
+   "h": 3,
+   "studs": true,
+   "shape": "slope",
+   "top": [
+    [
+     0,
+     0
+    ]
+   ],
+   "bottom": "all",
+   "ldraw": "3040b.dat",
+   "ldraw_origin": "stud_row_top",
+   "lip": 0.5,
+   "auto": true
+  },
+  {
+   "id": "3039",
+   "name": "Slope 45 2 x 2",
+   "kind": "slope",
+   "L": 2,
+   "W": 2,
+   "h": 3,
+   "studs": true,
+   "shape": "slope",
+   "top": [
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     1
+    ]
+   ],
+   "bottom": "all",
+   "ldraw": "3039.dat",
+   "ldraw_origin": "stud_row_top",
+   "lip": 0.5,
+   "auto": true
+  },
+  {
+   "id": "4286",
+   "name": "Slope 33 3 x 1",
+   "kind": "slope",
+   "L": 3,
+   "W": 1,
+   "h": 3,
+   "studs": true,
+   "shape": "slope",
+   "top": [
+    [
+     0,
+     0
+    ]
+   ],
+   "bottom": "all",
+   "ldraw": "4286.dat",
+   "ldraw_origin": "stud_row_top",
+   "lip": 0.5,
+   "auto": true
+  },
+  {
+   "id": "3298",
+   "name": "Slope 33 3 x 2",
+   "kind": "slope",
+   "L": 3,
+   "W": 2,
+   "h": 3,
+   "studs": true,
+   "shape": "slope",
+   "top": [
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     1
+    ]
+   ],
+   "bottom": "all",
+   "ldraw": "3298.dat",
+   "ldraw_origin": "stud_row_top",
+   "lip": 0.5,
+   "auto": true
+  },
+  {
+   "id": "54200",
+   "name": "Slope 30 1 x 1 x 2/3",
+   "kind": "slope",
+   "L": 1,
+   "W": 1,
+   "h": 2,
+   "studs": false,
+   "shape": "slope",
+   "top": "none",
+   "bottom": "all",
+   "ldraw": "54200.dat",
+   "ldraw_origin": "bottom",
+   "lip": 0.1,
+   "auto": true
+  },
+  {
+   "id": "85984",
+   "name": "Slope 30 1 x 2 x 2/3",
+   "kind": "slope",
+   "L": 1,
+   "W": 2,
+   "h": 2,
+   "studs": false,
+   "shape": "slope",
+   "top": "none",
+   "bottom": "all",
+   "ldraw": "85984.dat",
+   "ldraw_origin": "bottom",
+   "lip": 0.1,
+   "auto": true
+  },
+  {
+   "id": "3665",
+   "name": "Slope Inverted 45 2 x 1",
+   "kind": "slope_inv",
+   "L": 2,
+   "W": 1,
+   "h": 3,
+   "studs": true,
+   "shape": "slope_inv",
+   "top": "all",
+   "bottom": [
+    [
+     0,
+     0
+    ]
+   ],
+   "ldraw": "3665a.dat",
+   "ldraw_origin": "stud_row_top",
+   "lip": 0.5,
+   "auto": true
+  },
+  {
+   "id": "3660",
+   "name": "Slope Inverted 45 2 x 2",
+   "kind": "slope_inv",
+   "L": 2,
+   "W": 2,
+   "h": 3,
+   "studs": true,
+   "shape": "slope_inv",
+   "top": "all",
+   "bottom": [
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     1
+    ]
+   ],
+   "ldraw": "3660.dat",
+   "ldraw_origin": "stud_row_top",
+   "lip": 0.5,
+   "auto": true
+  },
+  {
+   "id": "4073",
+   "name": "Plate Round 1 x 1",
+   "kind": "round",
+   "L": 1,
+   "W": 1,
+   "h": 1,
+   "studs": true,
+   "shape": "round",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "4073.dat",
+   "auto": true,
+   "ldraw_origin": "top"
+  },
+  {
+   "id": "98138",
+   "name": "Tile Round 1 x 1",
+   "kind": "round",
+   "L": 1,
+   "W": 1,
+   "h": 1,
+   "studs": false,
+   "shape": "round",
+   "top": "none",
+   "bottom": "all",
+   "ldraw": "98138.dat",
+   "auto": true,
+   "ldraw_origin": "top"
+  },
+  {
+   "id": "4032",
+   "name": "Plate Round 2 x 2 with Axle Hole",
+   "kind": "round",
+   "L": 2,
+   "W": 2,
+   "h": 1,
+   "studs": true,
+   "shape": "round",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "4032b.dat",
+   "auto": true,
+   "ldraw_origin": "top"
+  },
+  {
+   "id": "14769",
+   "name": "Tile Round 2 x 2 with Bottom Stud Holder",
+   "kind": "round",
+   "L": 2,
+   "W": 2,
+   "h": 1,
+   "studs": false,
+   "shape": "round",
+   "top": "none",
+   "bottom": "all",
+   "ldraw": "14769.dat",
+   "auto": true,
+   "ldraw_origin": "top"
+  },
+  {
+   "id": "3062b",
+   "name": "Brick Round 1 x 1 Open Stud",
+   "kind": "round",
+   "L": 1,
+   "W": 1,
+   "h": 3,
+   "studs": true,
+   "shape": "round",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3062b.dat",
+   "auto": true,
+   "ldraw_origin": "top"
+  },
+  {
+   "id": "3941",
+   "name": "Brick Round 2 x 2 with Axle Hole",
+   "kind": "round",
+   "L": 2,
+   "W": 2,
+   "h": 3,
+   "studs": true,
+   "shape": "round",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "3941.dat",
+   "auto": true,
+   "ldraw_origin": "top"
   }
  ],
  "availability": {}
