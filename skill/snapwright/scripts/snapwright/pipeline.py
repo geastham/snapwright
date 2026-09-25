@@ -16,7 +16,7 @@ from .catalog import Catalog
 from .dsl import Model, dsl_namespace
 from .render import voxel_preview
 from .steps import AUDIENCE_MAX, plan_steps
-from .validate import connection_graph, occupancy, validate, verdict
+from .validate import connection_graph, occupancy, report_lines, validate, verdict
 
 DISCLAIMER = ("Unofficial fan design. Not affiliated with, sponsored or endorsed by the LEGO Group "
               "or any other brick manufacturer.")
@@ -113,6 +113,9 @@ def build(design, out, seeds=8, finish="tiles", audience="adult", max_per_step=N
             log("[6/6] book skipped: fix the failures above (or pass --no-strict for a draft)")
         tm.lap("book")
     s = model["stats"]
+    log("summary (also in the book finale and the viewer):")
+    for _, t in report_lines(s):
+        log(f"  {t}")
     log(f"done: {s['parts']:,} parts, {s['steps']} steps, {s['connections']:,} connections, "
         f"{'PASS' if ok else 'FAIL'}")
     return model
@@ -186,6 +189,7 @@ def write_viewer(model, path):
     slim["parts"] = [{k: p[k] for k in ("x", "y", "z", "dx", "dz", "h", "color", "studs", "step")}
                      for p in model["parts"]]
     slim["steps"] = [{"n": s["n"]} for s in model["steps"]]
+    slim["report"] = [{"kind": k, "text": t} for k, t in report_lines(model["stats"])]
     data = json.dumps(slim, separators=(",", ":")).replace("</", "<\\/")
     html = html.replace("__MODEL_JSON__", data).replace("__TITLE__", model["meta"]["title"])
     _write(os.path.dirname(path), os.path.basename(path), html)

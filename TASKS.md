@@ -52,6 +52,14 @@ across runs (model.json identical apart from `meta.created`).
 - 300-design hunt: oracles clean; island-free FAILs 22 -> 8 (7 are honest >1% trims of
   unsupported shelves, 1 floating part: blobby seed 66, open).
 
+- Viewer showed none of the auto-repairs (rule violation) and had a black canvas in light mode
+  and a negative step counter at start. One report source (validate.report_lines) now feeds
+  log, book finale and viewer (test_report.py). Viewer: transparent canvas, dt clamp, ?step=N.
+- Book finale text overflowed into the footer once more lines were reported; views now shrink.
+- Min-cut finds 12 weak points (<= 3 studs) on the lighthouse, e.g. a 7-part lantern stack on
+  one stud at the gallery deck. Packer follow-up: prefer seeds/placements with fewer weak
+  points (per-seed neck analysis costs ~1.75 s, so needs a cheaper proxy).
+
 ## Noted for later milestones
 - M5: draw an x-ray outline for a new part still hidden in its step's view (1-2% of parts).
 - M6: evals.json eval 5 points at `examples/lighthouse/out/model.json`, which is no longer

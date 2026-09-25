@@ -250,3 +250,40 @@ def verdict(stats) -> tuple[bool, list[str]]:
     if stats["com_margin_mm"] < 3:
         fails.append(f"centre of mass only {stats['com_margin_mm']} mm inside the footprint (tips over)")
     return (not fails), fails
+
+
+def report_lines(stats) -> list[tuple[str, str]]:
+    """The software checks as (kind, text) lines, kind = check | change | note. One source for
+    the CLI log, the book finale and the viewer, so the three always say the same thing.
+    Every automatic change the packer made to the design is a `change` line."""
+    st = stats
+    s_ = lambda n, w: f"{n:,} {w}" + ("" if n == 1 else "s")  # noqa: E731
+    out = [
+        ("check", f"{st['parts']:,} parts, {st['connections']:,} stud connections, "
+                  f"{s_(st['structures'], 'structure')}"),
+        ("check", f"{s_(st['collisions'], 'collision')}, {st['floating']} floating parts, "
+                  f"{s_(len(st['weak_parts']), 'single-stud joint')}"),
+        ("check", f"Centre of mass {st['com_margin_mm']} mm inside the base footprint"),
+        ("check", f"About {st['mass_g'] / 1000:.2f} kg, {st['width_cm']} x {st['depth_cm']} x "
+                  f"{st['height_cm']} cm (estimated)"),
+    ]
+    changes = [(st.get("recolored_cells", 0), "visible cell recoloured", "visible cells recoloured"),
+               (st.get("trimmed_cells", 0), "overhang cell trimmed", "overhang cells trimmed"),
+               (st.get("added_cells", 0), "support cell added", "support cells added"),
+               (st.get("studded_cells", 0), "top cell uses a studded plate instead of a tile",
+                "top cells use studded plates instead of tiles")]
+    for n, one, many in changes:
+        if n:
+            out.append(("change", f"Auto-repair: {n:,} {one if n == 1 else many}"))
+    necks = st.get("necks") or []
+    for nk in necks[:3]:
+        out.append(("note", f"Weak point: {nk['parts_above']} parts ({nk['mass_g']:.0f} g) from plate "
+                            f"{nk['plate']} up are held by {s_(nk['strength'], 'stud')}"))
+    if len(necks) > 3:
+        out.append(("note", f"... and {len(necks) - 3} more weak points held by 3 studs or fewer"))
+    if st.get("unverified_combos"):
+        out.append(("note", f"{len(st['unverified_combos'])} part-colour combos not yet verified "
+                            f"against a parts catalog"))
+    for f in st.get("failures", []):
+        out.append(("fail", f"FAIL: {f}"))
+    return out

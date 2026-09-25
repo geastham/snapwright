@@ -12,10 +12,12 @@ from collections import Counter
 from reportlab.lib.colors import HexColor
 from reportlab.lib.pagesizes import letter, A4
 from PIL import Image
+from reportlab import rl_config
 from reportlab.pdfgen import canvas
 
 from .pdfimage import draw_indexed
 from .render import model_grid, part_icon, render_grid
+from .validate import report_lines
 
 INK = HexColor("#1d2327")
 SOFT = HexColor("#6b7479")
@@ -35,6 +37,7 @@ class Book:
     def __init__(self, model, catalog, path, page="letter", log=print):
         self.m, self.cat, self.path, self.log = model, catalog, path, log
         self.W, self.H = letter if page == "letter" else A4
+        rl_config.useA85 = 0   # binary Flate streams: ASCII85 only adds 25% to every page
         self.c = canvas.Canvas(path, pagesize=(self.W, self.H), pageCompression=1)
         self.c.setTitle(model["meta"]["title"])
         self.c.setAuthor(model["meta"].get("author") or "")
@@ -188,27 +191,21 @@ class Book:
         c.setFillColor(INK)
         c.setFont("Helvetica-Bold", 18)
         c.drawString(36, self.H - 56, "Finished")
-        s = (self.W - 90) / 2
+        report = report_lines(st)
+        # the checks block sits above the footer notes; the four views get what's left
+        y = 62 + 13 * len(report)
+        s = min((self.W - 90) / 2, (self.H - 80 - (y + 18)) / 2)
+        x0 = (self.W - (2 * s + 18)) / 2
         for k in range(4):
             r, cc = divmod(k, 2)
-            draw_indexed(c, self.render(n, view=k, px=700), 36 + cc * (s + 18), self.H - 80 - (r + 1) * s,
-                        s, s)
-        y = self.H - 100 - 2 * s
+            draw_indexed(c, self.render(n, view=k, px=700), x0 + cc * (s + 18), self.H - 80 - (r + 1) * s,
+                         s, s)
         c.setFont("Helvetica-Bold", 10)
+        c.setFillColor(INK)
         c.drawString(36, y, "Checked in software")
-        c.setFont("Helvetica", 9)
-        lines = [
-            f"{st['parts']:,} parts, {st['connections']:,} stud connections, {st['structures']} structure",
-            f"{st['collisions']} collisions, {st['floating']} floating parts, {len(st['weak_parts'])} single-stud joints",
-            f"Centre of mass {st['com_margin_mm']} mm inside the base footprint",
-            f"About {st['mass_g'] / 1000:.2f} kg, {st['width_cm']} x {st['depth_cm']} x {st['height_cm']} cm (estimated)",
-        ]
-        if st.get("recolored_cells") or st.get("trimmed_cells"):
-            lines.append(f"Auto-repairs: {st.get('recolored_cells', 0)} surface cells recoloured, "
-                         f"{st.get('trimmed_cells', 0)} overhang cells trimmed")
-        if st.get("unverified_combos"):
-            lines.append(f"{len(st['unverified_combos'])} part-colour combos not yet verified against a parts catalog")
-        for i, t in enumerate(lines):
+        for i, (kind, t) in enumerate(report):
+            c.setFont("Helvetica-Bold" if kind == "fail" else "Helvetica", 9)
+            c.setFillColor({"change": ACC, "fail": ACC, "note": SOFT}.get(kind, INK))
             c.drawString(36, y - 16 - i * 13, t)
         c.setFont("Helvetica-Oblique", 8)
         c.setFillColor(SOFT)
