@@ -160,6 +160,50 @@ def render_grid(G, colors, studs, highlight=None, ghost=None, size=(900, 900), v
     return img.resize((W, H), Image.LANCZOS)
 
 
+def visible_samples(G, view=0, spp=4):
+    """How much of each part the camera sees in `view`, as a count of face samples that win
+    the depth test (a coarse id-buffer, same camera as render_grid). Returns {pid: count}."""
+    G = rotate_grid(G, view)
+    NX, NZ, NY = G.shape
+    if not (G >= 0).any():
+        return {}
+    Gp = np.pad(G, 1, constant_values=-1)
+
+    def nb(dx, dz, dy):
+        return Gp[1 + dx:1 + dx + NX, 1 + dz:1 + dz + NZ, 1 + dy:1 + dy + NY]
+
+    filled = G >= 0
+    t = (np.arange(spp) + 0.5) / spp
+    a, b = [m.ravel() for m in np.meshgrid(t, t, indexing="ij")]
+    pts, ids = [], []
+    for mask, fn in (
+            (filled & (nb(0, 0, 1) < 0), lambda x, z, y: (x + a, y + 1 + 0 * a, z + b)),   # top
+            (filled & (nb(1, 0, 0) < 0), lambda x, z, y: (x + 1 + 0 * a, y + b, z + a)),   # +x side
+            (filled & (nb(0, 1, 0) < 0), lambda x, z, y: (x + a, y + b, z + 1 + 0 * a))):  # +z side
+        xs, zs, ys = np.nonzero(mask)
+        if not len(xs):
+            continue
+        X, Y, Z = fn(xs[:, None], zs[:, None], ys[:, None])
+        pts.append((X.ravel() * STUD_MM, Y.ravel() * PLATE_MM, Z.ravel() * STUD_MM))
+        ids.append(np.repeat(G[xs, zs, ys], spp * spp))
+    X = np.concatenate([p[0] for p in pts])
+    Y = np.concatenate([p[1] for p in pts])
+    Z = np.concatenate([p[2] for p in pts])
+    pid = np.concatenate(ids)
+    u, v = proj(X, Y, Z)
+    px = STUD_MM * C45 / (spp - 1)          # a bit coarser than the sample spacing: no holes
+    iu = np.floor(u / px).astype(np.int64)
+    iv = np.floor(v / px).astype(np.int64)
+    key = (iu - iu.min()) * (iv.max() - iv.min() + 1) + (iv - iv.min())
+    depth = X * DIR[0] + Y * DIR[1] + Z * DIR[2]  # larger = nearer the camera
+    order = np.lexsort((depth, key))
+    last = np.ones(len(order), dtype=bool)
+    last[:-1] = key[order][1:] != key[order][:-1]
+    win = pid[order][last]
+    vals, cnt = np.unique(win, return_counts=True)
+    return dict(zip(vals.tolist(), cnt.tolist()))
+
+
 # ---- helpers used by the book / CLI ---------------------------------------
 
 def model_grid(parts, shape, upto_step=None, only=None):

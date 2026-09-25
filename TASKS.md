@@ -17,8 +17,9 @@ across runs (model.json identical apart from `meta.created`).
 - [x] Honest change counts: recoloured/trimmed computed from design vs built grid
 - [x] Transparent parts: cells behind/inside trans colours keep their colour
 - [x] Step feasibility includes insertion direction (from above / pressed from below)
-- [ ] §7.3 spatial step clustering (finish one region before the next)
-- [ ] §7.4 visibility-scored view choice (render-mask based)
+- [x] §7.3 spatial step clustering: region growing; lighthouse mean step spread 4.53 -> 3.19 studs
+- [x] §7.4 visibility-scored view choice (id-buffer): hidden new parts 2.6% -> 1.4% on random designs
+      (+~2 turns per model); single hidden parts get an x-ray outline in M5
 - [ ] §7.5 min-cut necks on the connection graph
 - [ ] §7.7 mosaic flat mode: staggered base plate layers, verified one structure
 - [ ] §7.8 LDraw round-trip test
@@ -50,5 +51,6 @@ across runs (model.json identical apart from `meta.created`).
   unsupported shelves, 1 floating part: blobby seed 66, open).
 
 ## Noted for later milestones
+- M5: draw an x-ray outline for a new part still hidden in its step's view (1-2% of parts).
 - M6: evals.json eval 5 points at `examples/lighthouse/out/model.json`, which is no longer
   tracked; give that eval a committed fixture or have the eval generate it.

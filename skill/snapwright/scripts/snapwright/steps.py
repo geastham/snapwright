@@ -9,14 +9,18 @@ Rules
     from below right after their anchor is placed. Deferred parts are re-checked until
     nothing changes, so a part whose support was itself deferred is still pressed down
     before anything covers it.
-  * Steps are chunked spatially (row by row) and capped at `max_per_step` parts, fewer
-    for young builders.
-  * A camera view (quarter turn, 0-3) is chosen per step so new parts face the reader,
-    with hysteresis so the model doesn't spin every page.
+  * Steps are grown as compact regions (finish one area before starting the next), capped
+    at `max_per_step` parts, fewer for young builders. Colour is a tie-breaker.
+  * A camera view (quarter turn, 0-3) is chosen per level from which view actually shows
+    the new parts (a coarse id-buffer render), with hysteresis so the model doesn't spin
+    every page.
 """
 from __future__ import annotations
 
-from collections import defaultdict
+import math
+from collections import Counter, defaultdict
+
+from .render import model_grid, visible_samples
 
 AUDIENCE_MAX = {"kids": 4, "family": 7, "adult": 12, "expert": 20}
 
@@ -37,26 +41,22 @@ def plan_steps(parts, edges, shape, max_per_step=8):
     for p in parts:
         by_level[p["y"]].append(p["id"])
     pending = []  # overhangs waiting for an anchor
-    NX, NZ, _ = shape
-    cx, cz = NX / 2, NZ / 2
 
     def placeable(pid):
         return parts[pid]["y"] == 0 or any(placed[q] for q in nbrs[pid])
 
+    level = 0
+
     def emit(ids, kind="build"):
         if not ids:
             return
-        # spatial chunking: sort by row then column, split evenly
-        ids = sorted(ids, key=lambda i: (parts[i]["color"], parts[i]["z"] // 4, parts[i]["x"]))
-        k = max(1, -(-len(ids) // max_per_step))
-        size = -(-len(ids) // k)
-        for s in range(0, len(ids), size):
-            chunk = ids[s:s + size]
+        for chunk in cluster(parts, ids, max_per_step):
             for i in chunk:
                 placed[i] = True
-            steps.append({"parts": chunk, "kind": kind})
+            steps.append({"parts": chunk, "kind": kind, "level": level})
 
     for y in sorted(by_level):
+        level = y
         ready, later = [], []
         for pid in by_level[y]:
             (ready if placeable(pid) else later).append(pid)
@@ -86,26 +86,82 @@ def plan_steps(parts, edges, shape, max_per_step=8):
     if pending:  # anything left is unreachable; put it last so the checks flag it
         emit(pending, kind="unanchored")
 
-    # views: decided per plate level (not per step) from where that level's parts sit,
-    # with strong hysteresis, so the reader isn't asked to turn the model every page
-    level_parts = defaultdict(list)
-    for st in steps:
-        level_parts[parts[st["parts"][0]]["y"]].extend(st["parts"])
-    view, level_view = 0, {}
-    faces = [(1, 1), (-1, 1), (-1, -1), (1, -1)]
-    for y in sorted(level_parts):
-        ids = level_parts[y]
-        mx = sum(parts[i]["x"] + parts[i]["dx"] / 2 for i in ids) / len(ids) - cx
-        mz = sum(parts[i]["z"] + parts[i]["dz"] / 2 for i in ids) / len(ids) - cz
-        scores = [mx * fx + mz * fz for fx, fz in faces]
-        best = max(range(4), key=lambda k: scores[k])
-        if scores[best] - scores[view] > max(3.0, 0.25 * max(NX, NZ)):
-            view = best
-        level_view[y] = view
-    for st in steps:
-        st["view"] = level_view[parts[st["parts"][0]]["y"]]
     for i, st in enumerate(steps):
         st["n"] = i + 1
         for pid in st["parts"]:
             parts[pid]["step"] = i + 1
+    choose_views(parts, steps, shape)
     return steps
+
+
+def cluster(parts, ids, max_per_step):
+    """Split one batch into steps of compact regions: grow each step from a seed by adding
+    the part nearest its centroid (a different colour costs a little extra distance), then
+    seed the next step next to where the last one ended, so the build sweeps round."""
+    if len(ids) <= max_per_step:
+        return [sorted(ids)]
+    k = math.ceil(len(ids) / max_per_step)
+    size = math.ceil(len(ids) / k)
+    c = {i: (parts[i]["x"] + parts[i]["dx"] / 2, parts[i]["z"] + parts[i]["dz"] / 2) for i in ids}
+    mx = sum(p[0] for p in c.values()) / len(c)
+    mz = sum(p[1] for p in c.values()) / len(c)
+    left = set(ids)
+    # start at the part farthest from the middle (an outer edge), lowest id on ties
+    seed = max(sorted(left), key=lambda i: (c[i][0] - mx) ** 2 + (c[i][1] - mz) ** 2)
+    out = []
+    while left:
+        group, gx, gz = [seed], c[seed][0], c[seed][1]
+        left.discard(seed)
+        colours = Counter([parts[seed]["color"]])
+        while left and len(group) < size:
+            main = colours.most_common(1)[0][0]
+            nxt = min(sorted(left), key=lambda i: math.hypot(c[i][0] - gx, c[i][1] - gz)
+                      + (1.5 if parts[i]["color"] != main else 0.0))
+            group.append(nxt)
+            left.discard(nxt)
+            colours[parts[nxt]["color"]] += 1
+            gx += (c[nxt][0] - gx) / len(group)
+            gz += (c[nxt][1] - gz) / len(group)
+        out.append(sorted(group))
+        if left:
+            lx, lz = c[group[-1]]
+            seed = min(sorted(left), key=lambda i: math.hypot(c[i][0] - lx, c[i][1] - lz))
+    return out
+
+
+def choose_views(parts, steps, shape, min_gain=0.15):
+    """One camera view per level: the quarter turn that shows the most of that level's new
+    parts (id-buffer visibility on the model as it stands after the level). Keep the current
+    view unless another shows clearly more, so the reader turns the model rarely."""
+    groups = defaultdict(list)
+    for st in steps:
+        groups[st["level"]].append(st)
+    view = 0
+    for lv in sorted(groups):
+        sts = groups[lv]
+        new = [pid for st in sts for pid in st["parts"]]
+        G = model_grid(parts, shape, upto_step=sts[-1]["n"])
+        scores = []
+        for k in range(4):
+            seen = visible_samples(G, k)
+            shown = sum(1 for pid in new if seen.get(pid, 0) >= 2)
+            scores.append(shown + 1e-4 * sum(seen.get(pid, 0) for pid in new))
+        best = max(range(4), key=lambda k: (scores[k], -((k - view) % 4 != 0)))
+        if scores[best] - scores[view] > max(1.0, min_gain * len(new)):
+            view = best
+        for st in sts:
+            st["view"] = view
+        # a step whose new parts hide in the level's view (a plate down between bricks, say)
+        # turns for that step only, to the view that shows the most of them
+        for st in sts:
+            Gs = model_grid(parts, shape, upto_step=st["n"])
+            here = visible_samples(Gs, view)
+            if sum(1 for pid in st["parts"] if here.get(pid, 0) < 2) < 2:
+                continue
+            per = [here if k == view else visible_samples(Gs, k) for k in range(4)]
+            shown = [sum(1 for pid in st["parts"] if per[k].get(pid, 0) >= 2) for k in range(4)]
+            hidden = len(st["parts"]) - shown[view]
+            if hidden >= max(2, 0.25 * len(st["parts"])):
+                best = max(range(4), key=lambda k: (shown[k], k == view))
+                if shown[best] > shown[view]:
+                    st["view"] = best
