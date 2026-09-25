@@ -26,7 +26,8 @@ across runs (model.json identical apart from `meta.created`).
       the finish; dithered 16x16 noise mosaic = 1 structure, all picture parts tiles (test)
 - [x] §7.8 LDraw round-trip test (exporters.parse_ldraw); LeoCAD screenshot check is M2
 - [x] §7.1 PDF size: 10.2 MB -> 4.9 MB (indexed-colour images; M5 pushes further)
-- [~] Performance: lighthouse build with book 49 s -> 14.4 s CPU (done); 5,000-part model < 3 min (pending)
+- [x] Performance: lighthouse with book 49 s -> ~19 s CPU; `make bench` (examples/keep, 5,068 parts,
+      PASS) 106 s CPU with book (brickify 9 s, steps 22 s, book 74 s)
 - [ ] Golden test on the lighthouse (parts ± 5 %, PASS, deterministic); `pytest -q` < 60 s
 - [ ] SKILL.md / references / SPEC / README updated; outputs visually inspected
 - [ ] PR opened with Decisions section; run summary posted
@@ -61,6 +62,8 @@ across runs (model.json identical apart from `meta.created`).
   points (per-seed neck analysis costs ~1.75 s, so needs a cheaper proxy).
 
 ## Noted for later milestones
+- M5: keep benchmark PDF is 20.5 MB for 5,068 parts; step view choice is 22 s there (per-step
+  id-buffer renders) and could reuse one render per step.
 - M5: draw an x-ray outline for a new part still hidden in its step's view (1-2% of parts).
 - M6: evals.json eval 5 points at `examples/lighthouse/out/model.json`, which is no longer
   tracked; give that eval a committed fixture or have the eval generate it.
