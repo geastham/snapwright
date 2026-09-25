@@ -10,3 +10,6 @@ __pycache__/
 .DS_Store
 # creation references may be private
 creations/*/reference/
+# instruction books and packaged skills are release assets, never commits
+*.pdf
+*.skill

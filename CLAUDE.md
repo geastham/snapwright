@@ -13,4 +13,5 @@
   on breaking changes and keep a reader for the previous version.
 - Never use a brick manufacturer's brand in names, titles, file names or UI; follow NOTICE.md.
 - Keep SKILL.md under 500 lines; put detail in references/.
-- Generated outputs go in `out/` folders (git-ignored). Large PDFs ship as release assets.
+- Generated outputs go in `out/` folders (git-ignored). Never commit books (PDFs), packaged
+  skills or files over 1 MB; they ship as release assets. `tests/test_repo_hygiene.py` enforces it.
