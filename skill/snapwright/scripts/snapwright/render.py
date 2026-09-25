@@ -84,77 +84,79 @@ def render_grid(G, colors, studs, highlight=None, ghost=None, size=(900, 900), v
     d = ImageDraw.Draw(img)
     highlight = highlight or set()
     fade = fade or set()
-    rgbc = {}
 
-    def P(X, Y, Z):
-        u, v = proj(X, Y, Z)
-        return (ox + s * u, oy + s * v)
-
-    filled = np.argwhere(G >= 0)
-    if not len(filled):
+    if not (G >= 0).any():
         return img.resize((W, H), Image.LANCZOS)
-    # visibility culling
-    def empty(x, z, y):
-        return x >= NX or z >= NZ or y >= NY or x < 0 or z < 0 or y < 0 or G[x, z, y] < 0
+    # neighbour lookups on a padded grid (-1 = empty), all vectorised
+    Gp = np.pad(G, 1, constant_values=-1)
 
-    vis = []
-    for x, z, y in filled:
-        top = empty(x, z, y + 1)
-        fx = empty(x + 1, z, y)
-        fz = empty(x, z + 1, y)
-        if top or fx or fz:
-            c = np.array([(x + .5) * STUD_MM, (y + .5) * PLATE_MM, (z + .5) * STUD_MM])
-            vis.append((float(c @ DIR), x, z, y, top, fx, fz))
-    vis.sort()
+    def nb(dx, dz, dy):
+        return Gp[1 + dx:1 + dx + NX, 1 + dz:1 + dz + NZ, 1 + dy:1 + dy + NY]
+
+    filled = G >= 0
+    top_m, fx_m, fz_m = nb(0, 0, 1) < 0, nb(1, 0, 0) < 0, nb(0, 1, 0) < 0
+    vis_m = filled & (top_m | fx_m | fz_m)
+    xs, zs, ys = np.nonzero(vis_m)
+    depth = ((xs + .5) * STUD_MM * DIR[0] + (ys + .5) * PLATE_MM * DIR[1] + (zs + .5) * STUD_MM * DIR[2])
+    order = np.lexsort((ys, zs, xs, depth))            # back to front, ties as before
+    xs, zs, ys = xs[order], zs[order], ys[order]
+    pid_a = G[xs, zs, ys]
+    same = {k: (nb(*k)[xs, zs, ys] == pid_a) for k in
+            ((0, 0, 1), (0, 0, -1), (-1, 0, 0), (1, 0, 0), (0, -1, 0), (0, 1, 0))}
+    flags = [top_m[xs, zs, ys], fx_m[xs, zs, ys], fz_m[xs, zs, ys]] + [same[k] for k in (
+        (0, 0, 1), (0, 0, -1), (-1, 0, 0), (1, 0, 0), (0, -1, 0), (0, 1, 0))]
+    X0, Z0, Y0 = xs * STUD_MM, zs * STUD_MM, ys * PLATE_MM
+    X1, Z1, Y1 = X0 + STUD_MM, Z0 + STUD_MM, Y0 + PLATE_MM
+
+    def Pv(X, Y, Z):
+        u, v = proj(X, Y, Z)
+        return list(zip((ox + s * u).tolist(), (oy + s * v).tolist()))
+
+    p001, p101, p111, p011 = Pv(X0, Y0, Z1), Pv(X1, Y0, Z1), Pv(X1, Y1, Z1), Pv(X0, Y1, Z1)
+    p100, p110, p010 = Pv(X1, Y0, Z0), Pv(X1, Y1, Z0), Pv(X0, Y1, Z0)
+    stud = Pv(X0 + 4, Y1, Z0 + 4)
     lw = max(1, int(round(s * 0.35)))
     hw = max(2, int(round(s * 0.9)))
-
-    def same(pid, x, z, y):
-        return not empty(x, z, y) and G[x, z, y] == pid
-
-    for _, x, z, y, top, fx, fz in vis:
-        pid = int(G[x, z, y])
-        if pid not in rgbc:
+    rx, ry, hh = STUD_R * s, STUD_R * s * SE, STUD_H * s * CE
+    fcache = {}
+    rows = zip(pid_a.tolist(), *[f.tolist() for f in flags])
+    for i, (pid, top, fx, fz, s_up, s_dn, s_xm, s_xp, s_zm, s_zp) in enumerate(rows):
+        if pid not in fcache:
             base = hex_to_rgb(colors[pid])
             if pid in fade:
                 base = _lift(base, 0.72)
-            rgbc[pid] = base
-        base = rgbc[pid]
-        ec = ACCENT if pid in highlight else _edge_col(base)
-        ew = hw if pid in highlight else lw
-        X0, X1 = x * STUD_MM, (x + 1) * STUD_MM
-        Z0, Z1 = z * STUD_MM, (z + 1) * STUD_MM
-        Y0, Y1 = y * PLATE_MM, (y + 1) * PLATE_MM
+            hi = pid in highlight
+            fcache[pid] = (base, ACCENT if hi else _edge_col(base), hw if hi else lw, _shade(base, 0.62),
+                           _shade(base, 0.8), _lift(base, 0.12), _shade(base, 0.72), _lift(base, 0.22),
+                           ACCENT if hi else _edge_col(base), max(1, lw if hi else lw - 1),
+                           studs.get(pid, True) if isinstance(studs, dict) else studs[pid])
+        base, ec, ew, c_fz, c_fx, c_top, c_sd, c_sl, s_ec, s_w, has_stud = fcache[pid]
         if fz:
-            q = [P(X0, Y0, Z1), P(X1, Y0, Z1), P(X1, Y1, Z1), P(X0, Y1, Z1)]
-            d.polygon(q, fill=_shade(base, 0.62))
-            if not same(pid, x, z, y + 1): d.line([q[3], q[2]], fill=ec, width=ew)
-            if not same(pid, x, z, y - 1): d.line([q[0], q[1]], fill=ec, width=ew)
-            if not same(pid, x - 1, z, y): d.line([q[0], q[3]], fill=ec, width=ew)
-            if not same(pid, x + 1, z, y): d.line([q[1], q[2]], fill=ec, width=ew)
+            q = [p001[i], p101[i], p111[i], p011[i]]
+            d.polygon(q, fill=c_fz)
+            if not s_up: d.line([q[3], q[2]], fill=ec, width=ew)
+            if not s_dn: d.line([q[0], q[1]], fill=ec, width=ew)
+            if not s_xm: d.line([q[0], q[3]], fill=ec, width=ew)
+            if not s_xp: d.line([q[1], q[2]], fill=ec, width=ew)
         if fx:
-            q = [P(X1, Y0, Z0), P(X1, Y0, Z1), P(X1, Y1, Z1), P(X1, Y1, Z0)]
-            d.polygon(q, fill=_shade(base, 0.8))
-            if not same(pid, x, z, y + 1): d.line([q[3], q[2]], fill=ec, width=ew)
-            if not same(pid, x, z, y - 1): d.line([q[0], q[1]], fill=ec, width=ew)
-            if not same(pid, x, z - 1, y): d.line([q[0], q[3]], fill=ec, width=ew)
-            if not same(pid, x, z + 1, y): d.line([q[1], q[2]], fill=ec, width=ew)
+            q = [p100[i], p101[i], p111[i], p110[i]]
+            d.polygon(q, fill=c_fx)
+            if not s_up: d.line([q[3], q[2]], fill=ec, width=ew)
+            if not s_dn: d.line([q[0], q[1]], fill=ec, width=ew)
+            if not s_zm: d.line([q[0], q[3]], fill=ec, width=ew)
+            if not s_zp: d.line([q[1], q[2]], fill=ec, width=ew)
         if top:
-            q = [P(X0, Y1, Z0), P(X1, Y1, Z0), P(X1, Y1, Z1), P(X0, Y1, Z1)]
-            d.polygon(q, fill=_lift(base, 0.12))
-            if not same(pid, x, z - 1, y): d.line([q[0], q[1]], fill=ec, width=ew)
-            if not same(pid, x + 1, z, y): d.line([q[1], q[2]], fill=ec, width=ew)
-            if not same(pid, x, z + 1, y): d.line([q[2], q[3]], fill=ec, width=ew)
-            if not same(pid, x - 1, z, y): d.line([q[3], q[0]], fill=ec, width=ew)
-            if studs.get(pid, True) if isinstance(studs, dict) else studs[pid]:
-                cx, cy = P(X0 + 4, Y1, Z0 + 4)
-                rx, ry = STUD_R * s, STUD_R * s * SE
-                hh = STUD_H * s * CE
-                d.rectangle([cx - rx, cy - hh, cx + rx, cy], fill=_shade(base, 0.72))
-                d.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=_shade(base, 0.72))
-                d.ellipse([cx - rx, cy - hh - ry, cx + rx, cy - hh + ry], fill=_lift(base, 0.22),
-                          outline=_edge_col(base) if pid not in highlight else ACCENT,
-                          width=max(1, lw - 1 if pid not in highlight else lw))
+            q = [p010[i], p110[i], p111[i], p011[i]]
+            d.polygon(q, fill=c_top)
+            if not s_zm: d.line([q[0], q[1]], fill=ec, width=ew)
+            if not s_xp: d.line([q[1], q[2]], fill=ec, width=ew)
+            if not s_zp: d.line([q[2], q[3]], fill=ec, width=ew)
+            if not s_xm: d.line([q[3], q[0]], fill=ec, width=ew)
+            if has_stud:
+                cx, cy = stud[i]
+                d.rectangle([cx - rx, cy - hh, cx + rx, cy], fill=c_sd)
+                d.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=c_sd)
+                d.ellipse([cx - rx, cy - hh - ry, cx + rx, cy - hh + ry], fill=c_sl, outline=s_ec, width=s_w)
     return img.resize((W, H), Image.LANCZOS)
 
 

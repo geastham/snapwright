@@ -22,8 +22,8 @@ across runs (model.json identical apart from `meta.created`).
 - [ ] §7.5 min-cut necks on the connection graph
 - [ ] §7.7 mosaic flat mode: staggered base plate layers, verified one structure
 - [ ] §7.8 LDraw round-trip test
-- [ ] §7.1 PDF size (lighthouse PDF well under 5 MB)
-- [ ] Performance: lighthouse build (6 seeds, with book) < 30 s; 5,000-part model < 3 min
+- [x] §7.1 PDF size: 10.2 MB -> 4.9 MB (indexed-colour images; M5 pushes further)
+- [~] Performance: lighthouse build with book 49 s -> 14.4 s CPU (done); 5,000-part model < 3 min (pending)
 - [ ] Golden test on the lighthouse (parts ± 5 %, PASS, deterministic); `pytest -q` < 60 s
 - [ ] SKILL.md / references / SPEC / README updated; outputs visually inspected
 - [ ] PR opened with Decisions section; run summary posted

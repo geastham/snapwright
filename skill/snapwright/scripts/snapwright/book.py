@@ -6,15 +6,15 @@ imitation of any manufacturer's official instruction style.
 """
 from __future__ import annotations
 
-import io
 import os
 from collections import Counter
 
 from reportlab.lib.colors import HexColor
 from reportlab.lib.pagesizes import letter, A4
-from reportlab.lib.utils import ImageReader
+from PIL import Image
 from reportlab.pdfgen import canvas
 
+from .pdfimage import draw_indexed
 from .render import model_grid, part_icon, render_grid
 
 INK = HexColor("#1d2327")
@@ -24,20 +24,18 @@ ACC = HexColor("#ff4628")
 PAPER = HexColor("#fbfaf7")
 
 
-def _img(pil, colors=96):
-    bg = __import__("PIL.Image", fromlist=["Image"]).new("RGBA", pil.size, (251, 250, 247, 255))
+def _img(pil):
+    """Flatten a render onto the paper colour (images go into the PDF as indexed colour)."""
+    bg = Image.new("RGBA", pil.size, (251, 250, 247, 255))
     bg.alpha_composite(pil.convert("RGBA"))
-    b = io.BytesIO()
-    bg.convert("RGB").quantize(colors, dither=0).save(b, "PNG", optimize=True)
-    b.seek(0)
-    return ImageReader(b)
+    return bg.convert("RGB")
 
 
 class Book:
     def __init__(self, model, catalog, path, page="letter", log=print):
         self.m, self.cat, self.path, self.log = model, catalog, path, log
         self.W, self.H = letter if page == "letter" else A4
-        self.c = canvas.Canvas(path, pagesize=(self.W, self.H))
+        self.c = canvas.Canvas(path, pagesize=(self.W, self.H), pageCompression=1)
         self.c.setTitle(model["meta"]["title"])
         self.c.setAuthor(model["meta"].get("author") or "")
         self.page_no = 0
@@ -86,7 +84,7 @@ class Book:
         self._page(footer=False)
         c, W, H, meta, st = self.c, self.W, self.H, self.m["meta"], self.m["stats"]
         n = len(self.m["steps"])
-        c.drawImage(self.render(n, view=0, px=1100), 36, 150, W - 72, W - 72, mask="auto")
+        draw_indexed(c, self.render(n, view=0, px=1100), 36, 150, W - 72, W - 72)
         c.setFillColor(INK)
         c.setFont("Helvetica-Bold", 34)
         c.drawString(40, H - 78, meta["title"])
@@ -119,7 +117,7 @@ class Book:
             for k, ((pid, col), q) in enumerate(items[start:start + per_page]):
                 r, cc = divmod(k, cols)
                 x, y = 36 + cc * cw, self.H - 90 - (r + 1) * ch
-                c.drawImage(self.icon(pid, col), x, y + 14, 70, 55, mask="auto")
+                draw_indexed(c, self.icon(pid, col), x, y + 14, 70, 55)
                 c.setFillColor(INK)
                 c.setFont("Helvetica-Bold", 12)
                 c.drawString(x + 74, y + 48, f"{q}x")
@@ -147,8 +145,8 @@ class Book:
                 per_row = max(1, int((cw - 80) // 44))
                 rows = min(2, -(-len(cnt) // per_row))
                 img_h = chh - 60 - rows * 46
-                c.drawImage(self.render(st["n"], st["parts"], st["view"], px=620), x0 + 14, y0 + 12,
-                            cw - 28, img_h, mask="auto", preserveAspectRatio=True, anchor="c")
+                draw_indexed(c, self.render(st["n"], st["parts"], st["view"], px=620), x0 + 14, y0 + 12,
+                            cw - 28, img_h, preserveAspectRatio=True, anchor="c")
                 c.setFillColor(INK)
                 c.setFont("Helvetica-Bold", 26)
                 c.drawString(x0 + 14, y0 + chh - 40, str(st["n"]))
@@ -158,7 +156,7 @@ class Book:
                 for j, ((pid, col), q) in enumerate(shown):
                     r2, c2 = divmod(j, per_row)
                     ix, iy = x0 + 60 + c2 * 44, y0 + chh - 50 - r2 * 46
-                    c.drawImage(self.icon(pid, col), ix, iy, 40, 31, mask="auto")
+                    draw_indexed(c, self.icon(pid, col), ix, iy, 40, 31)
                     c.setFont("Helvetica-Bold", 8)
                     c.setFillColor(INK)
                     c.drawString(ix + 2, iy - 8, f"{q}x")
@@ -193,8 +191,8 @@ class Book:
         s = (self.W - 90) / 2
         for k in range(4):
             r, cc = divmod(k, 2)
-            c.drawImage(self.render(n, view=k, px=700), 36 + cc * (s + 18), self.H - 80 - (r + 1) * s,
-                        s, s, mask="auto")
+            draw_indexed(c, self.render(n, view=k, px=700), 36 + cc * (s + 18), self.H - 80 - (r + 1) * s,
+                        s, s)
         y = self.H - 100 - 2 * s
         c.setFont("Helvetica-Bold", 10)
         c.drawString(36, y, "Checked in software")
