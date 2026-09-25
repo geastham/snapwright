@@ -22,7 +22,8 @@ across runs (model.json identical apart from `meta.created`).
       (+~2 turns per model); single hidden parts get an x-ray outline in M5
 - [x] §7.5 min-cut necks: max-flow per load above each boundary; reports the piece that would
       break off. Lighthouse: now finds real 1-2 stud joints (gallery railing), old heuristic found none
-- [ ] §7.7 mosaic flat mode: staggered base plate layers, verified one structure
+- [x] §7.7 mosaic flat mode: 2 base plate layers (grid grows), repairs re-pack before touching
+      the finish; dithered 16x16 noise mosaic = 1 structure, all picture parts tiles (test)
 - [x] §7.8 LDraw round-trip test (exporters.parse_ldraw); LeoCAD screenshot check is M2
 - [x] §7.1 PDF size: 10.2 MB -> 4.9 MB (indexed-colour images; M5 pushes further)
 - [~] Performance: lighthouse build with book 49 s -> 14.4 s CPU (done); 5,000-part model < 3 min (pending)

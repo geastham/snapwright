@@ -132,6 +132,9 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
         log(f"  note: {stats['recolored_cells']} surface cells recoloured to keep the model in one piece")
     if stats.get("trimmed_cells"):
         log(f"  note: {stats['trimmed_cells']} unsupportable overhang cells trimmed")
+    if stats.get("studded_cells"):
+        log(f"  note: {stats['studded_cells']} top cells use studded plates instead of tiles to hold "
+            f"parts together")
 
     log("[3/6] checks")
     ok, fails = verdict(stats)

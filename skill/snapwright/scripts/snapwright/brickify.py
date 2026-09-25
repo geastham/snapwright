@@ -11,9 +11,11 @@ Strategy (per seed):
     at least one supported cell, so rims and ledges are anchored.
   * Greedy per cell, scored by area, by how many distinct parts below it bridges (running
     bond), and by alternating long-axis direction between courses.
-  * Repair loop for parts left outside the main structure: (1) no bricks around them so plates
+  * Repair loop for parts left outside the main structure, least invasive first: (1) re-pack
+    them first so each stranded group joins a neighbour, with no bricks around them so plates
     interlock, (2) studded plates instead of tiles above them, (3) nudge visible colours to the
-    neighbour, (4) last resort, trim overhang cells nothing can hold. All changes are counted.
+    neighbour, (4) last resort, trim overhang cells nothing can hold (never floating design
+    islands). Colour and geometry changes are counted.
   * Several seeds are tried; the validator picks the best.
 """
 from __future__ import annotations
@@ -507,10 +509,13 @@ def floating_voxels(V: np.ndarray) -> np.ndarray:
     return (lab > 0) & ~np.isin(lab, grounded[grounded > 0])
 
 
-def _repair(V, parts, shape, no_brick, no_tile, priority, recolor, trim=False, keep=None):
+def _repair(V, parts, shape, no_brick, no_tile, priority, recolor, trim=False, keep=None,
+            studs_up=True):
     """Every round: pack the cells of stranded parts first, at any offset, so they bridge into
     their neighbours, and stop using bricks around them so plates can interlock.
-    Round with recolour: nudge visible cells of stranded parts to the adjacent main colour."""
+    studs_up: also use studded plates instead of tiles right above them (changes the finish).
+    recolor: nudge visible cells of stranded parts to the adjacent main colour.
+    trim: remove overhang cells nothing can hold (never cells of floating design islands)."""
     occ, d, main, bad = _stranded(parts, shape)
     if keep is not None:   # parts inside floating design islands can't be helped by repairs
         bad = [p for p in bad if not keep[p["x"]:p["x"] + p["dx"], p["z"]:p["z"] + p["dz"],
@@ -535,7 +540,7 @@ def _repair(V, parts, shape, no_brick, no_tile, priority, recolor, trim=False, k
         sl[...] = True
         # studded plates (not tiles) directly above can hang this part from its neighbours
         top = p["y"] + p["h"]
-        if top < NY:
+        if studs_up and top < NY:
             tl = no_tile[x0:x1, z0:z1, top]
             zone += int((~tl).sum())
             tl[...] = True
@@ -569,6 +574,22 @@ def _repair(V, parts, shape, no_brick, no_tile, priority, recolor, trim=False, k
     return changed, zone
 
 
+def _studded_by_repair(parts, W, no_tile, finish) -> int:
+    """Visible top cells that the tiled finish would cover with tiles but that got studded
+    plates because a repair needed the studs to hold something."""
+    if finish != "tiles":
+        return 0
+    top = np.zeros(W.shape, dtype=bool)
+    top[:, :, :-1] = (W[:, :, :-1] > 0) & (W[:, :, 1:] == 0)
+    top[:, :, -1] = W[:, :, -1] > 0
+    n = 0
+    for p in parts:
+        if p["kind"] == "plate" and p["y"] > 0:
+            sl = (slice(p["x"], p["x"] + p["dx"]), slice(p["z"], p["z"] + p["dz"]), p["y"])
+            n += int((top[sl] & no_tile[sl]).sum())
+    return n
+
+
 def change_counts(V, W, palette) -> dict:
     """What the automatic repairs really changed, from the design grid V vs the built grid W:
     visible cells whose colour differs, design cells removed, and cells added."""
@@ -598,20 +619,21 @@ def brickify(V, palette, catalog, seeds=8, finish="tiles", use_bricks=True, max_
             if (stats["floating"] == 0 and stats["structures"] == 1) or rnd == repair_rounds:
                 break
             ch, zone = _repair(W, parts, W.shape, no_brick, no_tile, priority, keep=islands,
-                               recolor=rnd in (2, 3),
-                               trim=rnd >= 4)
-            if zone < 0 or (ch == 0 and zone == 0 and rnd >= 4):   # nothing repairable left
+                               studs_up=rnd >= 2, recolor=rnd in (3, 4), trim=rnd >= 5)
+            if zone < 0 or (ch == 0 and zone == 0 and rnd >= 5):   # nothing repairable left
                 break
         stats.update(change_counts(V, W, palette))
+        stats["studded_cells"] = _studded_by_repair(parts, W, no_tile, finish)
         stats["design_voxels"] = int((V > 0).sum())
         stats["floating_voxels"] = int(islands.sum())
-        changes = stats["recolored_cells"] + stats["trimmed_cells"] + stats["added_cells"]
+        changes = (stats["recolored_cells"] + stats["trimmed_cells"] + stats["added_cells"]
+                   + stats["studded_cells"])
         key = (stats["floating"], stats["structures"], len(stats["weak_parts"]), changes,
                -stats["links"], len(parts))
         log(f"  seed {s}: {len(parts)} parts, {stats['links']} part-to-part links, "
             f"{stats['structures']} structure(s), {stats['floating']} floating, "
             f"{len(stats['weak_parts'])} weak, {stats['recolored_cells']} recoloured, "
-            f"{stats['trimmed_cells']} trimmed")
+            f"{stats['trimmed_cells']} trimmed, {stats['studded_cells']} studded")
         if best is None or key < best[0]:
             best = (key, s, parts, stats, W)
     _, seed, parts, stats, W = best

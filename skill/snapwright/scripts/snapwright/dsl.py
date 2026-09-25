@@ -39,10 +39,21 @@ class Model:
         self.title, self.author, self.subtitle = title, author, subtitle
         self.catalog = catalog or Catalog()
         self.notes: list[str] = []
+        self._grid()
+
+    def _grid(self):
         x = np.arange(self.NX) + 0.5
         z = np.arange(self.NZ) + 0.5
         y = np.arange(self.NY) + 0.5
         self.X, self.Z, self.Y = np.meshgrid(x, z, y, indexing="ij")
+
+    def grow_height(self, height: int):
+        """Make the grid at least `height` plates tall (existing voxels stay put)."""
+        if height > self.NY:
+            self.V = np.pad(self.V, ((0, 0), (0, 0), (0, height - self.NY)))
+            self.NY = int(height)
+            self._grid()
+        return self
 
     # ---- internals ---------------------------------------------------
     def _idx(self, color):
@@ -115,10 +126,13 @@ class Model:
 
     # ---- images ------------------------------------------------------
     def mosaic(self, image_path: str, colors: list[str] | None = None, mode: str = "flat",
-               base_color: str = "black", depth: int = 2, dither: bool = False):
+               base_color: str = "black", depth: int = 2, dither: bool = False,
+               base_layers: int = 2):
         """Photo -> mosaic sized to this model.
 
-        flat:    lies on the ground; 1 base plate layer + 1 colour layer (tiled by default).
+        flat:    lies on the ground; `base_layers` plate layers of base_color (packed with
+                 staggered seams so the base holds itself together) + 1 picture layer (tiles
+                 with the default finish). The grid grows to base_layers + 1 plates if needed.
         upright: stands up in the x-y plane, `depth` studs thick; image rows map to plates.
         """
         from PIL import Image
@@ -148,10 +162,12 @@ class Model:
                         if 0 <= i + di < w and 0 <= j + dj < h:
                             err[j + dj, i + di] += e * f
         if mode == "flat":
-            self.V[:, :, 0] = self._idx(base_color)
+            b = max(1, int(base_layers))
+            self.grow_height(b + 1)
+            self.V[:, :, :b] = self._idx(base_color)
             for i in range(w):
                 for j in range(h):
-                    self.V[i, h - 1 - j, 1] = self._idx(grid[i, j])  # image top -> back row
+                    self.V[i, h - 1 - j, b] = self._idx(grid[i, j])  # image top -> back row
         else:
             z0 = max(0, (self.NZ - depth) // 2)
             for i in range(w):
