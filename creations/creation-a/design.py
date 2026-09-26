@@ -30,7 +30,7 @@ W, D = 22, 18                     # tower footprint, studs (x west->east, z nort
 TX, TZ = 7, 4                     # tower's north-west corner
 PODIUM = 6                        # podium height above the land, plates
 TOWER = 108                       # roof height above the podium, plates
-BLADE = 1.09                      # blade tip height, as a fraction of TOWER
+BLADE = 1.15                      # blade tip height, as a fraction of TOWER (the spike from the lake)
 FLOOR = 3                         # plates per terrace step
 P0 = LAND + PODIUM                # plate where the tower starts
 NY = P0 + int(math.ceil(TOWER * BLADE))
@@ -85,12 +85,20 @@ def tower(X, Y, Z):
     return (Y >= P0) & (t < 1) & (X >= x_west(t)) & (X < x_east(ts)) & (Z >= TZ) & (Z < z_south(ts))
 
 
-def blade(X, Y, Z):               # the south-west corner, 2 x 2 studs, rising above the roof:
-    t = (Y - P0) / TOWER          # part of the tower (a separate 1-stud fin beside the glass
-    xw, zs = x_west(t), z_south(t)   # would only touch it sideways across a colour change)
-    # 3 deep: above the roof it drifts east and north at once, and 2 x 2 would overlap the
-    # layer below by a single stud
-    return (Y >= P0) & (t < BLADE) & (X >= xw) & (X < xw + 2) & (Z >= zs - 3) & (Z < zs)
+def blade(X, Y, Z):
+    """The south-west corner, 2 studs across and 3 deep, part of the tower (a separate 1-stud
+    fin beside the glass would only touch it sideways across a colour change). Above the roof
+    it stands straight up as a wedge: full height on the south side, stepping down to the
+    north, so the build caps the steps with slopes and it reads as the sail's tip (following
+    the curve up there broke it into a jagged stack held by single studs; a plain tapering
+    column became a round 'chimney')."""
+    t = np.minimum((Y - P0) / TOWER, 1.0)
+    xw, zs = x_west(t), z_south(t)
+    k = np.floor(zs - 1 - Z)                          # 0 on the south side, 2 on the north
+    top = np.where((Y - P0) / TOWER < 1, BLADE, BLADE - k * (BLADE - 1) / 3)
+    width = np.where((Y - P0) / TOWER < 1, 2, 1)       # a slim 1-stud fin above the roof
+    return ((Y >= P0) & ((Y - P0) / TOWER < top) & (X >= xw) & (X < xw + width)
+            & (Z >= zs - 3) & (Z < zs))
 
 
 model.box(TX - 2, TZ - 2, LAND, TX + W + 2, TZ + D + 2, P0, "dark_bluish_gray")   # podium
@@ -110,7 +118,11 @@ F = model.V > 0
 west = F.copy()
 west[1:] &= ~F[:-1]
 # (not on the north corner: a 1-stud colour column there shows on two sides and can't bond)
-model.paint(lambda X, Y, Z: west & (Y >= P0) & (Z.astype(int) % 2 == 0) & (Z >= TZ + 2), "white")
+# Where the sail curves in (upper part) its face is a staircase of treads; single-stud stripes
+# there break into bands, so that part of the face is solid white (it reads as the bright sail).
+CURVE = 0.55
+model.paint(lambda X, Y, Z: west & (Y >= P0) & (Z >= TZ + 2)
+            & ((Z.astype(int) % 2 == 0) | ((Y - P0) / TOWER >= CURVE)), "white")
 
 # ---- the bridge: a low deck on piers, running east from the shore across the inlet --------
 if DIORAMA:

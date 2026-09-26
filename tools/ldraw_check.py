@@ -104,6 +104,31 @@ def _slope_problem(p, t, tris, pid):
     return None
 
 
+def _corner_problem(p, t, tris, pid):
+    """A corner slope's two largest slanted faces (up-facing) point along its dir and dir + 1."""
+    want = {DIRS_LDRAW[p["dir"]], DIRS_LDRAW[(p["dir"] + 1) % 4]}
+    area = {}
+    for tri, s in tris:
+        if s:
+            continue
+        n = np.cross(tri[1] - tri[0], tri[2] - tri[0])
+        a = np.linalg.norm(n) / 2
+        if a == 0:
+            continue
+        n = n / (2 * a)
+        if n[1] > 0:                                          # make it up-facing (-Y is up)
+            n = -n
+        hz = math.hypot(n[0], n[2])
+        if hz < 0.3 or abs(n[1]) < 0.3:
+            continue
+        key = (round(n[0] / hz), round(n[2] / hz))
+        area[key] = area.get(key, 0) + a
+    got = {k for k, _ in sorted(area.items(), key=lambda kv: -kv[1])[:2]}
+    if got != want:
+        return f"part {pid} {p['part']} dir {p['dir']}: slanted faces point {sorted(got)} in LDraw, expected {sorted(want)}"
+    return None
+
+
 def check(model, ldr_text, lib, cat):
     from snapwright.exporters import split_mpd
     from snapwright.snot import PanelSpec, part_world_box
@@ -135,7 +160,11 @@ def check(model, ldr_text, lib, cat):
                 problems.append(f"part {pid} {p['part']} dir {p.get('dir')}: {k} is {got[k]:.2f} in LDraw, "
                                 f"{p[k]} in the model")
                 break
-        if t.shape in ("slope", "slope_inv"):
+        if t.shape in ("slope_cvx", "slope_ccv"):
+            bad = _corner_problem(p, t, tris, pid)
+            if bad:
+                problems.append(bad)
+        elif t.shape in ("slope", "slope_inv"):
             bad = _slope_problem(p, t, tris, pid)
             if bad:
                 problems.append(bad)

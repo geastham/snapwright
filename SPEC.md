@@ -129,6 +129,7 @@ regenerable from `model.json` alone.
 8. (M1: export/re-import round-trip test; LeoCAD screenshot check still in M2) LDraw rotation/origin conventions need a round-trip test in LeoCAD.
 9. (Done in M5) Viewer has no step-by-step mode or new-part highlight yet.
 10. (Done in M4) No CLI `compare` / reference scoring yet (M4).
-11. (Found by the M6 evals) Convex and concave corners of stepped cones (rocket noses, tower
+11. (Done in M7: 3045 / 3046 corner slopes where slope runs meet, checked against the LDraw
+    library; small curves' jags keep plain slopes) Convex and concave corners of stepped cones (rocket noses, tower
     roofs) show open triangles where slopes facing different ways meet; needs corner slopes
     (double convex / double concave). Planned with the M7 packer work.

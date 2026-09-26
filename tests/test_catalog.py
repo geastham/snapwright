@@ -52,7 +52,22 @@ def test_connection_metadata(cat):
     assert tile.local_cells("top") == set() and len(tile.local_cells("bottom")) == 1
     assert cheese.h == 2 and cheese.local_cells("top") == set()
     for p in cat.parts:                                  # every part is exportable
-        assert p.ldraw.endswith(".dat") and p.shape in ("box", "slope", "slope_inv", "round", "snot")
+        assert p.ldraw.endswith(".dat") and p.shape in ("box", "slope", "slope_inv", "slope_cvx",
+                                                          "slope_ccv", "round", "snot")
+    cvx, ccv = cat.by_id["3045"], cat.by_id["3046"]           # corner slopes (checked vs LDraw)
+    assert cvx.local_cells("top") == set() and len(cvx.local_cells("bottom")) == 4
+    assert ccv.local_cells("top") == {(0, 0), (1, 0), (0, 1)} and cvx.ldraw_origin == "corner_top"
+
+
+def test_corner_cells_four_directions():
+    from snapwright.catalog import DIRS, corner_back, corner_cells
+    for d in range(4):
+        x0, z0, cell = corner_cells(10, 20, d)
+        cells = {cell(i, j) for i in range(2) for j in range(2)}
+        assert cells == {(x0 + a, z0 + b) for a in range(2) for b in range(2)}
+        (ux, uz), (vx, vz) = DIRS[d], DIRS[(d + 1) % 4]
+        assert cell(1, 0) == (10 + ux, 20 + uz) and cell(0, 1) == (10 + vx, 20 + vz)
+        assert corner_back({"x": x0, "z": z0, "dx": 2, "dz": 2, "dir": d}) == (10, 20)
 
 
 def test_place_cells_four_directions(cat):

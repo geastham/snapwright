@@ -289,7 +289,7 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
 def _viewer_part(p, cat):
     """The fields the viewer needs; shaped parts add shape, dir, catalog L / lip, studs."""
     q = {k: p[k] for k in ("x", "y", "z", "dx", "dz", "h", "color", "studs", "step")}
-    if p.get("shape", "box") in ("slope", "slope_inv", "round"):     # side-stud bricks draw as boxes
+    if p.get("shape", "box") in ("slope", "slope_inv", "slope_cvx", "slope_ccv", "round"):     # side-stud bricks draw as boxes
         t = cat.by_id.get(p["part"]) if cat else None
         q.update(shape=p["shape"], dir=p.get("dir", 0), L=t.L if t else max(p["dx"], p["dz"]),
                  lip=t.lip if t else 0.5)

@@ -295,6 +295,18 @@ def _profile(p, u):
     return 0.0, float(h)
 
 
+def _height(p, X, Z):
+    """(bottom, top) of a shaped part at point (X, Z), in plates above the part's base. Corner
+    slopes fall away along both their face directions: an outside corner takes the farther of
+    the two distances from its back edges (a hip), an inside corner the nearer (a valley)."""
+    sh = p["shape"]
+    if sh in ("slope_cvx", "slope_ccv"):
+        ua = _u(p, X, Z)
+        ub = _u(dict(p, dir=(p.get("dir", 0) + 1) % 4), X, Z)
+        return _profile(dict(p, shape="slope"), max(ua, ub) if sh == "slope_cvx" else min(ua, ub))
+    return _profile(p, _u(p, X, Z))
+
+
 def _u(p, X, Z):
     """Distance (studs) of point (X, Z) from the back edge of a directional part."""
     d = p.get("dir", 0)
@@ -346,8 +358,8 @@ def _draw_shaped(d, p, x, z, y, G, color, hi, faded, frame, lw, hw, stud, open_x
     if p["shape"] == "round":
         _draw_round_cell(d, p, x, z, y, k, base, ec, ew, P, stud, s, lw)
         return
-    top_f = lambda q: (p["y"] + _profile(p, _u(p, q[0], q[2]))[1]) - q[1]    # noqa: E731
-    bot_f = lambda q: q[1] - (p["y"] + _profile(p, _u(p, q[0], q[2]))[0])    # noqa: E731
+    top_f = lambda q: (p["y"] + _height(p, q[0], q[2])[1]) - q[1]    # noqa: E731
+    bot_f = lambda q: q[1] - (p["y"] + _height(p, q[0], q[2])[0])    # noqa: E731
     slab = (lambda q: q[1] - y, lambda q: (y + 1) - q[1])
 
     def solid(poly):
@@ -369,7 +381,7 @@ def _draw_shaped(d, p, x, z, y, G, color, hi, faded, frame, lw, hw, stud, open_x
             outline(q, internal)
     # the top surface over this cell, cut to this cell's plate
     corners = [(x, z), (x + 1, z), (x + 1, z + 1), (x, z + 1)]
-    q = [(cx, p["y"] + _profile(p, _u(p, cx, cz))[1], cz) for cx, cz in corners]
+    q = [(cx, p["y"] + _height(p, cx, cz)[1], cz) for cx, cz in corners]
     flat = max(c[1] for c in q) - min(c[1] for c in q) < 1e-6
     for f in slab:
         q = _clip(q, f)
@@ -609,9 +621,16 @@ def model_grid(parts, shape, upto_step=None, only=None):
 
 def part_icon(ptype, color_hex, size=(140, 110)):
     """A single part, drawn as it looks (slopes face the viewer)."""
-    from .catalog import place_cells
+    from .catalog import corner_cells, place_cells
     dir_ = 1 if ptype.shape in ("slope", "slope_inv") else 0
-    if ptype.shape in ("slope", "slope_inv"):
+    if ptype.shape in ("slope_cvx", "slope_ccv"):          # faces +x and +z, towards the viewer
+        _, _, cell = corner_cells(0, 0, 0)
+        cells = {(i, j): cell(i, j) for i in range(2) for j in range(2)}
+        p = {"id": 0, "part": ptype.id, "x": 0, "z": 0, "y": 0, "dx": 2, "dz": 2, "h": ptype.h,
+             "shape": ptype.shape, "dir": 0, "studs": ptype.studs,
+             "top_cells": [list(cells[c]) for c in sorted(ptype.local_cells("top"))],
+             "bottom_cells": [list(cells[c]) for c in sorted(ptype.local_cells("bottom"))]}
+    elif ptype.shape in ("slope", "slope_inv"):
         dx, dz, cell = place_cells(ptype, 0, 0, dir_)
         cells = {(i, j): cell(i, j) for i in range(ptype.L) for j in range(ptype.W)}
         p = {"id": 0, "part": ptype.id, "x": 0, "z": 0, "y": 0, "dx": dx, "dz": dz, "h": ptype.h,

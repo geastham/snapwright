@@ -16,12 +16,12 @@ DIRS = ((1, 0), (0, 1), (-1, 0), (0, -1))   # +x, +z, -x, -z: which way a slope'
 class PartType:
     id: str
     name: str
-    kind: str      # brick | plate | tile | slope | slope_inv | round
+    kind: str      # brick | plate | tile | slope | slope_inv | round | snot
     L: int         # long side, studs (for slopes: from the back, studded row to the low front row)
     W: int         # short side, studs
     h: int         # height in plates
     studs: bool    # any studs on top
-    shape: str = "box"          # box | slope | slope_inv | round | snot
+    shape: str = "box"          # box | slope | slope_inv | slope_cvx | slope_ccv | round | snot
     top: object = "all"         # "all" | "none" | ((i, j), ...) cells with a stud on top
     bottom: object = "all"      # "all" | "none" | ((i, j), ...) cells that take a stud underneath
     ldraw: str = ""
@@ -59,6 +59,26 @@ def place_cells(t: PartType, x: int, z: int, dir_: int):
     if dir_ == 1:
         return W, L, lambda i, j: (x + j, z + i)
     return W, L, lambda i, j: (x + j, z + L - 1 - i)
+
+
+def corner_cells(bx: int, bz: int, dir_: int):
+    """Footprint of a 2 x 2 corner slope whose high back corner is cell (bx, bz) and whose
+    faces point DIRS[dir_] and DIRS[dir_ + 1]. Returns (x, z, cell) with (x, z) the footprint's
+    min corner and cell(i, j) mapping local cell -> world (x, z): i steps along the first
+    face direction, j along the second."""
+    ux, uz = DIRS[dir_]
+    vx, vz = DIRS[(dir_ + 1) % 4]
+    x0 = min(bx, bx + ux + vx)
+    z0 = min(bz, bz + uz + vz)
+    return x0, z0, lambda i, j: (bx + i * ux + j * vx, bz + i * uz + j * vz)
+
+
+def corner_back(p):
+    """The high back corner cell (x, z) of a placed corner slope part dict."""
+    ux, uz = DIRS[p["dir"]]
+    vx, vz = DIRS[(p["dir"] + 1) % 4]
+    return (p["x"] if ux + vx > 0 else p["x"] + p["dx"] - 1,
+            p["z"] if uz + vz > 0 else p["z"] + p["dz"] - 1)
 
 
 class Catalog:

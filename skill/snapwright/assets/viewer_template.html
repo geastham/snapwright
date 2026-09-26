@@ -140,6 +140,40 @@ function slopeGeo(L, h, lip, inverted) {  // width 1 (x), length L*S along local
   const g = new THREE.ExtrudeGeometry(sh, { depth: 1, bevelEnabled: false });
   g.rotateY(-Math.PI / 2); g.translate(0.5, 0, 0); return g;
 }
+// corner slopes (2 x 2): local +z is the first face direction, local -x the second; the high
+// back corner is the cell at low z / high x. Height falls with the farther (outside corner, a
+// hip) or nearer (inside corner, a valley) distance from the two back edges.
+function cornerGeo(concave, h, lip) {
+  const hh = h * P, lp = lip * P, g = [-S, 0, S], pos = [];
+  const prof = u => (u <= 1 ? hh : hh - (hh - lp) * (u - 1));
+  const top = (x, z) => { const ua = (z + S) / S, ub = (S - x) / S;
+    return prof(concave ? Math.min(ua, ub) : Math.max(ua, ub)); };
+  const tri = (a, b, c, out) => {          // wind so the face points along `out`
+    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], w = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    const n = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]];
+    if (n[0] * out[0] + n[1] * out[1] + n[2] * out[2] < 0) [b, c] = [c, b];
+    pos.push(...a, ...b, ...c);
+  };
+  for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {   // top: split along the crease
+    const [x0, x1, z0, z1] = [g[i], g[i + 1], g[j], g[j + 1]];
+    const p00 = [x0, top(x0, z0), z0], p10 = [x1, top(x1, z0), z0], p11 = [x1, top(x1, z1), z1],
+          p01 = [x0, top(x0, z1), z1];
+    tri(p00, p01, p10, [0, 1, 0]); tri(p11, p10, p01, [0, 1, 0]);
+  }
+  const sides = [[[-S, -S], [S, -S], [0, -1]], [[S, -S], [S, S], [1, 0]], [[S, S], [-S, S], [0, 1]],
+                 [[-S, S], [-S, -S], [-1, 0]]];
+  for (const [[ax, az], [bx, bz], [ox, oz]] of sides) for (let k = 0; k < 2; k++) {
+    const t0 = k / 2, t1 = (k + 1) / 2;
+    const x0 = ax + (bx - ax) * t0, z0 = az + (bz - az) * t0, x1 = ax + (bx - ax) * t1, z1 = az + (bz - az) * t1;
+    const a = [x0, 0, z0], b = [x1, 0, z1], c = [x1, top(x1, z1), z1], d = [x0, top(x0, z0), z0];
+    tri(a, b, c, [ox, 0, oz]); tri(a, c, d, [ox, 0, oz]);
+  }
+  tri([-S, 0, -S], [S, 0, -S], [S, 0, S], [0, -1, 0]); tri([-S, 0, -S], [S, 0, S], [-S, 0, S], [0, -1, 0]);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.computeVertexNormals(); return geo;
+}
+const isCorner = p => p.shape === 'slope_cvx' || p.shape === 'slope_ccv';
 const groups = new Map();              // key -> {geo, idx: [part indices]}
 const keyOf = p => p.shape === 'round' ? `r${p.dx}:${p.h}` : p.shape ? `${p.shape}:${p.L}:${p.h}:${p.lip}` : 'box';
 for (const i of order) { const p = parts[i], k = keyOf(p);
@@ -148,6 +182,7 @@ for (const [k, g] of groups) {
   const p = g.p;
   g.geo = k === 'box' ? boxGeo : p.shape === 'round'
     ? new THREE.CylinderGeometry(p.dx / 2 * S * .98, p.dx / 2 * S * .98, p.h * P - 0.12, 24).translate(0, p.h * P / 2, 0)
+    : isCorner(p) ? cornerGeo(p.shape === 'slope_ccv', p.h, p.lip)
     : slopeGeo(p.L, p.h, p.lip, p.shape === 'slope_inv');
   g.mesh = new THREE.InstancedMesh(g.geo, mat, g.idx.length);
   g.idx.forEach((i, n) => g.mesh.setColorAt(n, new THREE.Color(M.colors[parts[i].color].hex)));
@@ -203,7 +238,8 @@ function place(t) {                 // t = build time in steps (fractional)
       } else {
         v.set((p.x + p.dx / 2) * S, p.y * P + drop, (p.z + p.dz / 2) * S);
         const width = p.shape === 'round' ? 1 : (p.dir % 2 ? p.dx : p.dz);
-        sc.set(p.shape === 'round' ? 1 : width * S - gap, 1, 1);
+        if (isCorner(p)) sc.set(1 - gap / (2 * S), 1, 1 - gap / (2 * S));
+        else sc.set(p.shape === 'round' ? 1 : width * S - gap, 1, 1);
         q.setFromAxisAngle(up, p.shape === 'round' ? 0 : ROT[p.dir]);
       }
       g.mesh.setMatrixAt(n++, m4.compose(v, q, sc));

@@ -1,6 +1,6 @@
 {
  "schema": "snapwright.catalog/0.2",
- "note": "Part IDs follow BrickLink/LDraw numbering. 'core' colours are widely produced in the basic brick/plate/tile moulds listed here; 'limited' colours exist but not in every mould. `availability` lists, per part, the colours it has appeared in (plain, unprinted) in sets since `availability_meta.since`, from Rebrickable's CSV downloads; refresh it with `sw.py sync-catalog`. The packer only uses listed combos (the 1x1 brick, plate and tile excepted, as a fallback the checks flag). `rebrickable` is set where Rebrickable numbers a part differently. Schema 0.2 adds connection metadata: `top` / `bottom` list the part's cells (i along L from the back/high row, j along W) that have a stud on top / take a stud underneath ('all' or 'none' for simple parts); `shape` is box, slope, slope_inv or round; `ldraw` is the LDraw file and `ldraw_origin` where its origin sits (top: top centre; stud_row_top: top centre of the back row; bottom: bottom centre). `auto` parts may be placed by the surface-shaping pass. `side` lists cells (i, j) with a stud on the part's side face; side studs point along the part's local +z (LDraw -Z) and sit `side_mm` above the part's bottom.",
+ "note": "Part IDs follow BrickLink/LDraw numbering. 'core' colours are widely produced in the basic brick/plate/tile moulds listed here; 'limited' colours exist but not in every mould. `availability` lists, per part, the colours it has appeared in (plain, unprinted) in sets since `availability_meta.since`, from Rebrickable's CSV downloads; refresh it with `sw.py sync-catalog`. The packer only uses listed combos (the 1x1 brick, plate and tile excepted, as a fallback the checks flag). `rebrickable` is set where Rebrickable numbers a part differently. Schema 0.2 adds connection metadata: `top` / `bottom` list the part's cells (i along L from the back/high row, j along W) that have a stud on top / take a stud underneath ('all' or 'none' for simple parts); `shape` is box, slope, slope_inv, slope_cvx (outside corner), slope_ccv (inside corner) or round; corner slopes have local cells (i, j) with i along the first slope direction (`dir`) and j along the next one (dir + 1), (0, 0) being the high back corner, whose top centre is their LDraw origin (`corner_top`); `ldraw` is the LDraw file and `ldraw_origin` where its origin sits (top: top centre; stud_row_top: top centre of the back row; bottom: bottom centre). `auto` parts may be placed by the surface-shaping pass. `side` lists cells (i, j) with a stud on the part's side face; side studs point along the part's local +z (LDraw -Z) and sit `side_mm` above the part's bottom.",
  "units": {
   "stud_mm": 8.0,
   "plate_mm": 3.2,
@@ -858,6 +858,52 @@
    "ldraw_origin": "stud_row_top",
    "lip": 0.5,
    "auto": true
+  },
+  {
+   "id": "3045",
+   "name": "Slope 45 2 x 2 Double Convex",
+   "kind": "slope",
+   "L": 2,
+   "W": 2,
+   "h": 3,
+   "studs": false,
+   "shape": "slope_cvx",
+   "top": "none",
+   "bottom": "all",
+   "ldraw": "3045.dat",
+   "ldraw_origin": "corner_top",
+   "lip": 0.5,
+   "auto": true
+  },
+  {
+   "id": "3046",
+   "name": "Slope 45 2 x 2 Double Concave",
+   "kind": "slope",
+   "L": 2,
+   "W": 2,
+   "h": 3,
+   "studs": true,
+   "shape": "slope_ccv",
+   "top": [
+    [
+     0,
+     0
+    ],
+    [
+     1,
+     0
+    ],
+    [
+     0,
+     1
+    ]
+   ],
+   "bottom": "all",
+   "ldraw": "3046.dat",
+   "ldraw_origin": "corner_top",
+   "lip": 0.5,
+   "auto": true,
+   "rebrickable": "3046a"
   },
   {
    "id": "3660",
@@ -1994,6 +2040,38 @@
    "white",
    "yellow"
   ],
+  "3045": [
+   "black",
+   "blue",
+   "bright_light_orange",
+   "dark_blue",
+   "dark_bluish_gray",
+   "dark_red",
+   "dark_tan",
+   "green",
+   "light_bluish_gray",
+   "lime",
+   "medium_azure",
+   "orange",
+   "red",
+   "reddish_brown",
+   "sand_green",
+   "tan",
+   "white",
+   "yellow"
+  ],
+  "3046": [
+   "black",
+   "blue",
+   "bright_light_orange",
+   "dark_blue",
+   "dark_bluish_gray",
+   "dark_red",
+   "light_bluish_gray",
+   "red",
+   "reddish_brown",
+   "white"
+  ],
   "3660": [
    "black",
    "blue",
@@ -2215,6 +2293,6 @@
  "availability_meta": {
   "source": "rebrickable downloads",
   "since": 2005,
-  "date": "2026-09-25"
+  "date": "2026-09-26"
  }
 }
