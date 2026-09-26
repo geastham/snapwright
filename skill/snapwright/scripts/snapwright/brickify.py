@@ -78,13 +78,16 @@ class Packer:
                  finish: str = "tiles", use_bricks: bool = True, max_len: int = 8,
                  interior: int | None = None, no_brick: np.ndarray | None = None,
                  no_tile: np.ndarray | None = None, priority: np.ndarray | None = None,
-                 shapes: bool = True, anchors: list | None = None):
+                 shapes: bool = True, anchors: list | None = None, live_from: int = 1):
         self.V = V
         self.no_tile = no_tile if no_tile is not None else np.zeros(V.shape, dtype=bool)
         self.no_brick = no_brick if no_brick is not None else np.zeros(V.shape, dtype=bool)
         # stranded-group label per cell (0 = none): packed first, at any offset, and must
         # join a cell outside their own group
         self.priority = priority if priority is not None else np.zeros(V.shape, dtype=np.int32)
+        # labels below live_from belong to groups an earlier round already joined to the main
+        # structure (kept so that area is still packed first); they count as main
+        self.live_from = live_from
         self.rescued = 0
         self.shapes = shapes
         self.anchors = anchors or []
@@ -355,6 +358,9 @@ class Packer:
                             if (a, b) not in rect or not rect <= pool or colour(rect) is None \
                                     or not self._ok(t, colour(rect)) or not any(under[c] for c in rect):
                                 continue
+                            # it must join the lone cell to another group, not just its own
+                            if all(self.priority[c[0], c[1], y] == self.priority[x, z, y] for c in rect):
+                                continue
                             rest = cover(pool - rect)
                             if rest is None:
                                 continue
@@ -414,15 +420,28 @@ class Packer:
 
             def joining(x, z):
                 """Placements that join a supported priority cell to something outside its
-                own stranded group (the only kind that fixes it)."""
+                own stranded group (the only kind that fixes it): into the main structure if
+                it can, else into a neighbouring stranded group (two groups side by side
+                would otherwise only ever join each other)."""
                 g = prio_layer[x, z]
-                return [o for o in fm.options(x, z, 2)
-                        if (prio_layer[o[1]:o[1] + o[3], o[2]:o[2] + o[4]] != g).any()]
+                if g < self.live_from:          # already joined in an earlier round
+                    return fm.options(x, z, 2)
+                out, main = [], []
+                for o in fm.options(x, z, 2):
+                    win = prio_layer[o[1]:o[1] + o[3], o[2]:o[2] + o[4]]
+                    other = win != g
+                    if other.any():
+                        out.append(o)
+                        if (other & (win < self.live_from)).any():
+                            main.append(o)
+                return main or out
 
             def options(x, z):
                 if not under[x, z]:
                     return fm.options(x, z)
-                return joining(x, z) or fm.options(x, z, 2)
+                # no way to join from here: anything goes, even a 1x1, so the lookahead can
+                # keep a neighbour's only join free
+                return joining(x, z) or fm.options(x, z, 2 if self.priority[x, z, y] < self.live_from else 1)
 
             def strands(a, b, ax, az, dx, dz):
                 """Would taking rectangle (ax, az, dx, dz) leave cell (a, b) no way to be
@@ -700,24 +719,47 @@ def _repair(V, parts, shape, no_brick, no_tile, priority, recolor, trim=False, k
                             V[x, z, y] = 0
                             changed -= 1  # negative = trimmed, tracked separately
             continue
-        if not recolor:
-            continue
-        for x in range(p["x"], p["x"] + p["dx"]):
-            for z in range(p["z"], p["z"] + p["dz"]):
-                for y in range(p["y"], p["y"] + p["h"]):
-                    votes: dict = {}
-                    for a, b, c in ((x + 1, z, y), (x - 1, z, y), (x, z + 1, y), (x, z - 1, y),
-                                    (x, z, y + 1), (x, z, y - 1)):
-                        if 0 <= a < NX and 0 <= b < NZ and 0 <= c < NY and occ[a, b, c] >= 0 \
-                                and d.find(int(occ[a, b, c])) == main:
-                            v = int(V[a, b, c])
-                            votes[v] = votes.get(v, 0) + 1
-                    if votes:
-                        newc = max(votes, key=votes.get)
-                        if V[x, z, y] != newc:
-                            V[x, z, y] = newc
-                            changed += 1
+    if recolor:
+        changed += _recolour_contacts(V, bad, occ, d, main, shape)
     return changed, zone
+
+
+def _recolour_contacts(V, bad, occ, d, main, shape):
+    """Recolour step: per stranded group, ONE cell where it touches the main structure takes
+    the main colour there (the middle-height contact, preferring cells with more main
+    neighbours). One plate across the colour boundary is enough to join the group: its
+    stacked parts hold on to that plate. Recolouring every contact cell instead eroded
+    features such as a fin column by column. Returns the number of cells changed."""
+    NX, NZ, NY = shape
+    groups: dict = {}
+    for p in bad:
+        groups.setdefault(d.find(p["id"]), []).append(p)
+    changed = 0
+    for ps in groups.values():
+        contacts = []
+        for p in ps:
+            for x in range(p["x"], p["x"] + p["dx"]):
+                for z in range(p["z"], p["z"] + p["dz"]):
+                    for y in range(p["y"], p["y"] + p["h"]):
+                        votes: dict = {}
+                        for a, b, c in ((x + 1, z, y), (x - 1, z, y), (x, z + 1, y), (x, z - 1, y),
+                                        (x, z, y + 1), (x, z, y - 1)):
+                            if 0 <= a < NX and 0 <= b < NZ and 0 <= c < NY and occ[a, b, c] >= 0 \
+                                    and d.find(int(occ[a, b, c])) == main:
+                                v = int(V[a, b, c])
+                                votes[v] = votes.get(v, 0) + 1
+                        if votes:
+                            newc = max(votes, key=votes.get)
+                            if V[x, z, y] != newc:
+                                contacts.append((y, -votes[newc], x, z, newc))
+        if not contacts:
+            continue
+        ys = sorted(c[0] for c in contacts)
+        mid = ys[len(ys) // 2]
+        y, _, x, z, newc = min(contacts, key=lambda c: (abs(c[0] - mid), c[1], c[0], c[2], c[3]))
+        V[x, z, y] = newc
+        changed += 1
+    return changed
 
 
 def _studded_by_repair(parts, W, no_tile, finish) -> int:
@@ -746,7 +788,7 @@ def change_counts(V, W, palette) -> dict:
 
 
 def brickify(V, palette, catalog, seeds=8, finish="tiles", use_bricks=True, max_len=8,
-             repair_rounds=6, log=print, shapes=True, anchors=None):
+             repair_rounds=12, log=print, shapes=True, anchors=None):
     """Try several seeds (each with a repair loop), validate, keep the best.
     Returns (parts, stats, V_final) where V_final includes any repair recolouring."""
     from .validate import validate
@@ -757,16 +799,28 @@ def brickify(V, palette, catalog, seeds=8, finish="tiles", use_bricks=True, max_
         no_brick = np.zeros(V.shape, dtype=bool)
         no_tile = np.zeros(V.shape, dtype=bool)
         priority = np.zeros(V.shape, dtype=np.int32)
+        # repair stages, least invasive first: 0 re-pack, 1 + studded plates above, 2 + recolour,
+        # 3 + trim. A stage runs while it makes progress (fewer stranded parts: joining one
+        # group along a thin staircase can strand the next), and gives way after 2 idle rounds.
+        stage, least, idle, live = 0, None, 0, 1
         for rnd in range(repair_rounds + 1):
             parts = Packer(W, palette, catalog, seed=s, finish=finish, use_bricks=use_bricks,
                            max_len=max_len, no_brick=no_brick, no_tile=no_tile,
-                           priority=priority, shapes=shapes, anchors=anchors).run()
+                           priority=priority, shapes=shapes, anchors=anchors, live_from=live).run()
             stats = validate(parts, W.shape, catalog, with_necks=False)
             if (stats["floating"] == 0 and stats["structures"] == 1) or rnd == repair_rounds:
                 break
+            score = (stats["structures"], stats["floating"])
+            if least is None or score < least:
+                least, idle = score, 0
+            else:
+                idle += 1
+                if idle >= 2 and stage < 3:
+                    stage, idle = stage + 1, 0
+            live = int(priority.max()) + 1            # this round's stranded groups get these
             ch, zone = _repair(W, parts, W.shape, no_brick, no_tile, priority, keep=islands,
-                               studs_up=rnd >= 2, recolor=rnd in (3, 4), trim=rnd >= 5)
-            if zone < 0 or (ch == 0 and zone == 0 and rnd >= 5):   # nothing repairable left
+                               studs_up=stage >= 1, recolor=stage == 2, trim=stage >= 3)
+            if zone < 0 or (ch == 0 and zone == 0 and stage >= 3):   # nothing repairable left
                 break
         stats.update(change_counts(V, W, palette))
         stats["studded_cells"] = _studded_by_repair(parts, W, no_tile, finish)

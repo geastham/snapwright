@@ -241,13 +241,88 @@ def voxelize(tris, tri_idx, size_mm, fill=True, spacing=1.2):
         if solid is None:                     # not watertight: fill whatever the shell encloses
             solid = ndimage.binary_fill_holes(shell)
         else:
-            # cell centres inside the surface, plus thin parts the rays miss (fins, flags)
-            solid |= shell & ~ndimage.binary_dilation(solid, iterations=1)
+            # cell centres inside the surface, plus thin parts the rays miss (fins, flags),
+            # with the skin cells they grow from (their roots, next to the solid body)
+            thin = shell & ~ndimage.binary_dilation(solid, iterations=1)
+            if thin.any():
+                thin |= ndimage.binary_dilation(thin, iterations=1) & shell
+            solid |= thin
+        solid = join_diagonals(solid)
+        solid |= _fill_corners(solid)
         out = np.zeros_like(V)
         _, (ii, jj, kk) = ndimage.distance_transform_edt(V == 0, return_indices=True)
         out[solid] = V[ii[solid], jj[solid], kk[solid]]
         return out
     return V
+
+
+def _fill_corners(S):
+    """Cells that complete a 2 x 2 square (in a layer) where three cells are filled and at
+    least one of them is one stud thin (in no full 2 x 2 square). A thin part running
+    diagonally across the grid (a fin) rasterises as a one-stud staircase that bricks can
+    barely interlock along; filling its inside corners makes it a band about two studs wide.
+    Inside corners of thicker walls are left alone."""
+    full = S[:-1, :-1] & S[1:, :-1] & S[:-1, 1:] & S[1:, 1:]
+    covered = np.zeros_like(S)
+    covered[:-1, :-1] |= full
+    covered[1:, :-1] |= full
+    covered[:-1, 1:] |= full
+    covered[1:, 1:] |= full
+    thin = S & ~covered
+    a, b, c, d = S[:-1, :-1], S[1:, :-1], S[:-1, 1:], S[1:, 1:]
+    ta = thin[:-1, :-1] | thin[1:, :-1] | thin[:-1, 1:] | thin[1:, 1:]
+    three = (a.astype(np.int8) + b + c + d == 3) & ta
+    add = np.zeros_like(S)
+    add[:-1, :-1] |= three & ~a
+    add[1:, :-1] |= three & ~b
+    add[:-1, 1:] |= three & ~c
+    add[1:, 1:] |= three & ~d
+    return add
+
+
+def join_diagonals(S, rounds=12):
+    """Bricks only join face to face. Where two face-connected pieces of S touch only along an
+    edge (a thin diagonal fin rasterised as a staircase of cells), fill one of the two cells
+    that would join them face-on, until nothing is joined only that way."""
+    from scipy import ndimage
+    S = S.copy()
+    offs = [(1, 1, 0), (1, -1, 0), (1, 0, 1), (1, 0, -1), (0, 1, 1), (0, 1, -1)]
+    for _ in range(rounds):
+        lab, n = ndimage.label(S)
+        if n <= 1:
+            break
+        add = np.zeros_like(S)
+        P = np.pad(lab, 1)
+        core = (slice(1, -1),) * 3
+        for o in offs:
+            shift = tuple(slice(1 + d, P.shape[k] - 1 + d) for k, d in enumerate(o))
+            other = P[shift]
+            meet = (lab > 0) & (other > 0) & (other != lab)
+            if not meet.any():
+                continue
+            # the two face bridges between a cell and its diagonal neighbour
+            b1 = tuple(slice(1 + (o[k] if k == _first(o) else 0), P.shape[k] - 1 + (o[k] if k == _first(o) else 0))
+                       for k in range(3))
+            b2 = tuple(slice(1 + (o[k] if k != _first(o) else 0), P.shape[k] - 1 + (o[k] if k != _first(o) else 0))
+                       for k in range(3))
+            meet &= (P[b1] == 0) & (P[b2] == 0)
+            if not meet.any():
+                continue
+            # fill the first bridge (shifted by the first nonzero axis of the offset)
+            k = _first(o)
+            idx = np.nonzero(meet)
+            pos = list(idx)
+            pos[k] = pos[k] + o[k]
+            add[tuple(pos)] = True
+        del core
+        if not add.any():
+            break
+        S |= add
+    return S
+
+
+def _first(o):
+    return next(k for k, d in enumerate(o) if d)
 
 
 def _inside_by_parity(tris, shape):

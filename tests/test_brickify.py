@@ -67,3 +67,21 @@ def test_no_tiles_on_the_ground_and_studs_finish(cat):
     assert not any(p["kind"] == "tile" and p["y"] == 0 for p in model["parts"])
     model, _ = solve(m, catalog=cat, seeds=1, finish="studs")
     assert not any(p["kind"] == "tile" for p in model["parts"])
+
+
+def test_fin_of_another_colour_touching_only_side_on():
+    """A red fin standing against a white body touches it only side-on, across visible
+    surface cells, so no part can span the colour boundary. The repair recolours one contact
+    cell (one plate across the boundary holds the whole stacked fin), not the fin column by
+    column."""
+    from conftest import model_from_src, solve
+    m = model_from_src('''
+model = Model(12, 12, 24)
+model.box(5, 0, 0, 6, 12, 24, "white")      # a wall one stud thick: both faces show
+model.box(6, 5, 0, 11, 6, 12, "red")        # fins on either face
+model.box(0, 7, 0, 5, 8, 12, "red")
+''')
+    model, _ = solve(m, seeds=1)
+    st = model["stats"]
+    assert st["passed"], st["failures"]
+    assert 0 < st["recolored_cells"] <= 4, st["recolored_cells"]

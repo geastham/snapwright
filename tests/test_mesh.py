@@ -107,3 +107,50 @@ def test_glb_materials_and_node_transforms_build(tmp_path):
     model, built = solve(m, seeds=1)
     assert model["stats"]["passed"], model["stats"]["failures"]
     check_model(model, m.V, built, m.palette)
+
+
+def _prism(r, y0, y1, n=24, r1=None):
+    """Closed n-gon prism (or frustum to radius r1) around the y axis."""
+    r1 = r if r1 is None else r1
+    tris = []
+    for k in range(n):
+        a0, a1 = 2 * np.pi * k / n, 2 * np.pi * (k + 1) / n
+        p = lambda rr, a, y: (rr * np.cos(a), y, rr * np.sin(a))           # noqa: E731
+        tris += [(p(r, a0, y0), p(r1, a0, y1), p(r1, a1, y1)), (p(r, a0, y0), p(r1, a1, y1), p(r, a1, y0)),
+                 ((0, y0, 0), p(r, a1, y0), p(r, a0, y0))]
+        if r1 > 0:
+            tris.append(((0, y1, 0), p(r1, a0, y1), p(r1, a1, y1)))
+    return np.array(tris, dtype=float)
+
+
+def _fin(angle, r0, r1, t, y0, y1):
+    v, tt = _box(r0, y0, -t / 2, r1, y1, t / 2)
+    c, s = np.cos(angle), np.sin(angle)
+    v = v @ np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]])
+    return v[tt]
+
+
+def test_thin_fins_stay_attached(tmp_path):
+    """A rocket's fins are thinner than a stud and one or two run diagonally across the grid.
+    They must come out as fins joined face-on to the body (bricks can't join at an edge or a
+    corner), not as loose or diagonal cells."""
+    tris = np.concatenate([_prism(24, 0, 150), _prism(24, 150, 210, r1=0)] +
+                          [_fin(a, 24, 60, 6, 0, 45) for a in (0, 2 * np.pi / 3, 4 * np.pi / 3)])
+    data = b"\0" * 80 + struct.pack("<I", len(tris))
+    for tri in tris:
+        data += struct.pack("<3f", 0, 0, 0) + struct.pack("<9f", *tri.ravel()) + b"\0\0"
+    (tmp_path / "rocket.stl").write_bytes(data)
+    m = Model.from_mesh(str(tmp_path / "rocket.stl"), height_cm=25, default_color="white")
+    from scipy import ndimage
+    _, n = ndimage.label(m.V > 0)                                       # face (6-) connectivity
+    assert n == 1, f"{n} face-connected pieces"
+    cx, cz = m.NX / 2, m.NZ / 2
+    xs, zs, ys = np.nonzero(m.V > 0)
+    low = ys < 45 * 250 / 210 / 3.2 - 1
+    ang = np.degrees(np.arctan2(zs[low] + 0.5 - cz, xs[low] + 0.5 - cx)) % 360
+    far = np.hypot(xs[low] + 0.5 - cx, zs[low] + 0.5 - cz) > 24 * 250 / 210 / 8 + 1.5
+    for a in (0, 120, 240):
+        near = np.minimum(abs(ang - a), 360 - abs(ang - a)) < 20
+        assert (far & near).any(), f"no fin at {a} degrees"
+    model, built = solve(m, seeds=1)
+    assert model["stats"]["passed"], model["stats"]["failures"]
