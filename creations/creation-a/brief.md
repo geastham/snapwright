@@ -27,7 +27,10 @@ included and are still needed (see 15).
 |---|---|---|---|
 | photo_lake_south.png | from the south across the lake, ground level | photo | west (sail) face seen obliquely on the left; terraced south face; trees hide the base |
 | photo_aerial.jpg | from the west, elevated | photo | the sail face almost head-on; south terraces stepping down on the right; base cut off |
-| view_front/right/back/left/top/three_quarter.png, detail_*.png, mask_*.png | | generated | **missing** |
+| view_front.jpg + mask_view_front.png | south elevation | generated | used for the likeness score (IoU 0.92) |
+| view_side.jpg + mask_view_side.png | west elevation (probably) | generated | its terraces are drawn on the north side: an artefact, not modelled |
+| context_lakefront.jpg | lakefront from the south | generated | diorama layout: tree rows, curved shore, bridge across the inlet |
+| view_back/right/top/three_quarter, detail_* | | generated | not supplied; not needed so far |
 
 ## 5. Target size and budget **[changed]**
 - **Measured from the photos:** width about 0.55 x height; depth about 0.45 x height.
@@ -92,6 +95,12 @@ PDF instructions, 3D viewer, LDraw, BrickLink list, physical test build.
 - Every must-read feature is at least 2 studs.
 - The part count is inside the budget we agree.
 - Likeness sign-off: Project Lead. Physical build: Lead Builder.
+
+## Decisions (2026-09-26)
+- Budget: over 2,000 parts is fine. Diorama: yes (lake, a shore with autumn trees, a bridge).
+- Build so far: 3,334 parts, 38.4 x 38.4 x 41 cm, 3.5 kg, PASS. Weak points are all held
+  by >= 2 studs. South-elevation IoU is 0.92 for the tower alone
+  (`SAIL_TOWER_ONLY=1 sw.py compare ...`).
 
 ## 15. Open questions
 1. Please bring the generated reference views and masks, especially clean south and west

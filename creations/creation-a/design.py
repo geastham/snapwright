@@ -26,7 +26,6 @@ DIORAMA = not os.environ.get("SAIL_TOWER_ONLY")
 NX, NZ = 48, 48
 LAND = 4                          # land height, plates (the lake surface is lower)
 WATER = 3                         # lake surface, plates
-SHORE_Z = 30                      # land runs from the back (z = 0) to here; lake in front
 W, D = 22, 18                     # tower footprint, studs (x west->east, z north->south)
 TX, TZ = 7, 4                     # tower's north-west corner
 PODIUM = 6                        # podium height above the land, plates
@@ -41,18 +40,31 @@ model = Model(NX, NZ, NY, title="Lakeside Sail Tower",
               author="Open Conjecture")
 
 # ---- ground: land at the back, lake in front ----------------------------------------------
+# The shore runs straight across in front of the tower, then curves back on the east side,
+# where the lake reaches in behind a bridge (as in reference/context_lakefront.jpg).
+SHORE_Z = 32
+
+
+def shore(X):                     # z of the waterline at x
+    s = np.clip((X - 30) / 16, 0, 1)
+    return SHORE_Z - 12 * s * s * (3 - 2 * s)
+
+
 if not DIORAMA:                   # tower only: just the land under the podium
     model.box(TX - 2, TZ - 2, 0, TX + W + 2, TZ + D + 2, LAND, "dark_bluish_gray")
 if DIORAMA:
-    model.box(0, 0, 0, NX, SHORE_Z, LAND, "dark_bluish_gray")                # land
-    model.box(0, SHORE_Z, 0, NX, NZ, WATER, "dark_bluish_gray")               # lake bed
+    lake = lambda X, Z: Z >= shore(X)                                     # noqa: E731
+    model.where(lambda X, Y, Z: ~lake(X, Z) & (Y < LAND), "dark_bluish_gray")       # land
+    model.where(lambda X, Y, Z: lake(X, Z) & (Y < WATER), "dark_bluish_gray")       # lake bed
     # the water: tiles in two blues, ripples running across (east-west) like the reflections
-    model.where(lambda X, Y, Z: (Z >= SHORE_Z) & (np.floor(Y) == WATER - 1), "medium_azure")
-    model.where(lambda X, Y, Z: (Z >= SHORE_Z) & (np.floor(Y) == WATER - 1) & ((Z.astype(int) + (X.astype(int) // 6)) % 4 == 0),
+    top = lambda Y, h: np.floor(Y) == h - 1                                # noqa: E731
+    model.paint(lambda X, Y, Z: lake(X, Z) & top(Y, WATER), "medium_azure")
+    model.paint(lambda X, Y, Z: lake(X, Z) & top(Y, WATER) & ((Z.astype(int) + (X.astype(int) // 6)) % 4 == 0),
                 "blue")
-    # grass along the shore, a path behind it
-    model.where(lambda X, Y, Z: (Z >= SHORE_Z - 6) & (Z < SHORE_Z) & (np.floor(Y) == LAND - 1), "green")
-    model.where(lambda X, Y, Z: (Z >= SHORE_Z - 8) & (Z < SHORE_Z - 6) & (np.floor(Y) == LAND - 1), "tan")
+    # a sandy edge at the waterline, grass behind it, a path behind that
+    model.paint(lambda X, Y, Z: ~lake(X, Z) & top(Y, LAND) & (Z >= shore(X) - 8), "green")
+    model.paint(lambda X, Y, Z: ~lake(X, Z) & top(Y, LAND) & (Z >= shore(X) - 1.5), "tan")
+    model.paint(lambda X, Y, Z: ~lake(X, Z) & top(Y, LAND) & (Z >= shore(X) - 10) & (Z < shore(X) - 8), "tan")
 
 # ---- the tower ----------------------------------------------------------------------------
 def x_west(t):
@@ -100,33 +112,39 @@ west[1:] &= ~F[:-1]
 # (not on the north corner: a 1-stud colour column there shows on two sides and can't bond)
 model.paint(lambda X, Y, Z: west & (Y >= P0) & (Z.astype(int) % 2 == 0) & (Z >= TZ + 2), "white")
 
-# ---- the bridge: a low deck on piers across the lake, on the east side ---------------------
+# ---- the bridge: a low deck on piers, running east from the shore across the inlet --------
 if DIORAMA:
-    BX0, BX1 = 40, 45                 # deck width (x)
+    BZ0, BZ1 = 24, 29                 # deck width (z)
     DECK = 7                          # deck underside, plates
-    for pz in (SHORE_Z + 3, SHORE_Z + 9, SHORE_Z + 15):                     # piers
-        model.box(BX0 + 1, pz, WATER, BX1 - 1, pz + 2, DECK, "light_bluish_gray")
-    model.box(BX0, SHORE_Z - 2, DECK, BX1, NZ, DECK + 2, "light_bluish_gray")             # deck
-    model.box(BX0, SHORE_Z - 2, LAND, BX1, SHORE_Z, DECK, "light_bluish_gray")            # abutment
-    model.box(BX0, SHORE_Z - 2, DECK + 2, BX0 + 1, NZ, DECK + 3, "white")                 # parapets
-    model.box(BX1 - 1, SHORE_Z - 2, DECK + 2, BX1, NZ, DECK + 3, "white")
-
-# ---- a lower neighbour behind, to the east: blue glass with pale floor bands --------------
-if DIORAMA:
-    NB = (35, 4, 45, 16, 36)          # x0, z0, x1, z1, height above the land (plates)
-    model.box(NB[0], NB[1], LAND, NB[2], NB[3], LAND + NB[4], "dark_blue")
-    model.paint(lambda X, Y, Z: (X >= NB[0]) & (np.floor(Y - LAND) % 6 == 5), "light_bluish_gray")
+    for px in (39, 44):                                                     # piers
+        model.box(px, BZ0 + 1, WATER, px + 2, BZ1 - 1, DECK, "light_bluish_gray")
+    model.box(34, BZ0, DECK, NX, BZ1, DECK + 2, "light_bluish_gray")                     # deck
+    model.box(34, BZ0, LAND, 36, BZ1, DECK, "light_bluish_gray")                         # abutment
+    model.box(34, BZ0, DECK + 2, NX, BZ0 + 1, DECK + 3, "white")                         # parapets
+    model.box(34, BZ1 - 1, DECK + 2, NX, BZ1, DECK + 3, "white")
 
 model.hollow()
 
 # ---- trees along the shore (added after hollowing so they stay solid) -----------------------
+# Two staggered rows of autumn trees between the podium and the water: round canopies in
+# orange, yellow and greens, with a few tall narrow conifers, as in the lakefront reference.
+# Every tree stands on a 2 x 2 trunk (a canopy of 50-90 parts on a 1 x 1 trunk would hang on
+# a single stud).
 if DIORAMA:
-    CANOPY = ["orange", "yellow", "green", "bright_light_orange", "dark_green", "orange", "yellow",
-              "dark_red", "green", "orange"]
-    # (x, z, canopy radius in studs, canopy centre height above the land in plates)
-    TREES = [(3, 26, 2.6, 13), (8, 27, 2.2, 11), (13, 26, 2.9, 14), (18, 27, 2.3, 12),
-             (23, 26, 2.7, 13), (28, 27, 2.2, 11), (33, 26, 2.8, 14), (37, 27, 2.0, 10)]
-    for k, (cx, cz, r, h) in enumerate(TREES):
-        # a 2 x 2 trunk: a canopy of 50-90 parts on a 1 x 1 trunk would hang on a single stud
-        model.box(cx, cz - 1, LAND, cx + 2, cz + 1, LAND + h, "reddish_brown")
-        model.ellipsoid(cx + 1, LAND + h, cz, r, r * 2.5, r, CANOPY[k % len(CANOPY)])
+    COLOURS = ["orange", "yellow", "green", "bright_light_orange", "orange", "dark_green",
+               "yellow", "dark_red", "orange", "green", "bright_light_orange", "yellow"]
+    rows = [(26.5, 1, 5), (29.5, 3.5, 5)]            # (z, first x, spacing)
+    k = 0
+    for z, x0, step in rows:
+        x = x0
+        while x < 33:
+            r = 2.0 + 0.8 * ((k * 7) % 5) / 4                   # canopy radius 2.0-2.8 studs
+            h = 10 + (k * 5) % 6                                # canopy centre height, plates
+            cx, cz = int(x), int(z)
+            model.box(cx, cz - 1, LAND, cx + 2, cz + 1, LAND + h, "reddish_brown")
+            if k % 5 == 3:                                      # a narrow conifer
+                model.cone(cx + 1, cz, 2.0, 0.6, LAND + 4, LAND + h + 10, "dark_green")
+            else:
+                model.ellipsoid(cx + 1, LAND + h, cz, r, r * 2.5, r, COLOURS[k % len(COLOURS)])
+            x += step
+            k += 1
