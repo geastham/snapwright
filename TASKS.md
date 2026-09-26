@@ -12,13 +12,14 @@ Current milestone: **M6 Publishable skill** (branch `m6-publish`). M1-M5 merged 
       seams in stacked plates, filler colour under round parts, thin mesh features, repair
       loop joining chains of stranded groups, one-cell recolours, panel default plane,
       mosaic palette, explicit availability wording
-- [ ] Iteration 2 (with skill; baselines reused), benchmark
-- [ ] Description tuned for triggering (run_loop on evals/trigger_eval.json, 20 queries)
+- [x] Iteration 2 (with skill; baselines reused): 97% vs 91%, 255 s vs 611 s; docs/evals.md
+- [x] Triggering measured on evals/trigger_eval.json (20 queries): 19/20; description names
+      fixing failed designs (run_loop contaminated by an installed copy; see docs/evals.md)
 - [x] Rebrickable-verified catalog committed (CSV downloads, no key); sync-catalog
       documented (CONTRIBUTING.md) and hardened (API: rebrickable ids, pagination, 429)
 - [x] CONTRIBUTING.md
-- [ ] README gallery: cover PNGs + viewer links (docs/gallery, GitHub Pages)
-- [ ] `make package` -> dist/snapwright.skill < 2 MB; self-contained check
+- [x] README gallery: cover PNGs + viewer links (docs/gallery, GitHub Pages)
+- [x] `make package` -> dist/snapwright.skill, 113 KB; tests/test_package.py builds from the unzipped copy
 - [ ] PR, merge
 
 ## M5 (done, PR #6)
