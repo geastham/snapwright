@@ -253,7 +253,7 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
 def _viewer_part(p, cat):
     """The fields the viewer needs; shaped parts add shape, dir, catalog L / lip, studs."""
     q = {k: p[k] for k in ("x", "y", "z", "dx", "dz", "h", "color", "studs", "step")}
-    if p.get("shape", "box") != "box":
+    if p.get("shape", "box") in ("slope", "slope_inv", "round"):     # side-stud bricks draw as boxes
         t = cat.by_id.get(p["part"]) if cat else None
         q.update(shape=p["shape"], dir=p.get("dir", 0), L=t.L if t else max(p["dx"], p["dz"]),
                  lip=t.lip if t else 0.5)
@@ -344,6 +344,25 @@ def _solve_panels(panels, parts, steps, stats, cat, seeds, finish, mps, log):
     return subs, merged, fails
 
 
+def _viewer_panels(model):
+    """Sideways panels for the viewer: world boxes (mm) per part, the face normal (the way the
+    panel slides on) and the step it is attached in."""
+    from .snot import PanelSpec, part_world_box
+    attach = {st["sub"]: st["n"] for st in model["steps"] if st.get("kind") == "attach"}
+    out = []
+    for sb in model.get("subassemblies", []):
+        sp = PanelSpec.from_json(sb["spec"])
+        _, n, _ = sp.frame()
+        boxes = []
+        for q in sb["parts"]:
+            lo, hi = part_world_box(sp, q)
+            boxes.append({"lo": [round(float(v), 2) for v in lo], "hi": [round(float(v), 2) for v in hi],
+                          "color": q["color"]})
+        out.append({"name": sb["name"], "n": [float(n[0]), 0.0, float(n[2])],
+                    "step": attach.get(sb["name"], len(model["steps"])), "parts": boxes})
+    return out
+
+
 def write_viewer(model, path, catalog=None):
     cat = catalog or Catalog()
     with open(os.path.join(ASSETS, "viewer_template.html")) as f:
@@ -352,6 +371,8 @@ def write_viewer(model, path, catalog=None):
     slim["parts"] = [_viewer_part(p, cat) for p in model["parts"]]
     slim["steps"] = [{"n": s["n"]} for s in model["steps"]]
     slim["report"] = [{"kind": k, "text": t} for k, t in report_lines(model["stats"])]
+    slim["panels"] = _viewer_panels(model)
+    slim.pop("subassemblies", None)
     data = json.dumps(slim, separators=(",", ":")).replace("</", "<\\/")
     html = html.replace("__MODEL_JSON__", data).replace("__TITLE__", model["meta"]["title"])
     _write(os.path.dirname(path), os.path.basename(path), html)

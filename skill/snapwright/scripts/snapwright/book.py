@@ -24,6 +24,7 @@ SOFT = HexColor("#6b7479")
 LINE = HexColor("#d9dcde")
 ACC = HexColor("#ff4628")
 PAPER = HexColor("#fbfaf7")
+INSET = HexColor("#f1f4f6")
 
 
 def _img(pil):
@@ -47,6 +48,16 @@ class Book:
         self.colors = {p["id"]: catalog.colors[p["color"]]["hex"] for p in parts}
         self.studs = {p["id"]: p["studs"] for p in parts}
         self._icons = {}
+        from .snot import PanelSpec
+        self.subs = {}
+        for sb in model.get("subassemblies", []):
+            self.subs[sb["name"]] = {"spec": PanelSpec.from_json(sb["spec"]), "parts": sb["parts"],
+                                     "grid": tuple(sb["grid"]),
+                                     "colors": {q["id"]: catalog.colors[q["color"]]["hex"] for q in sb["parts"]}}
+        self.attach_at = {st["sub"]: st["n"] for st in model["steps"] if st.get("kind") == "attach"}
+
+    def all_parts(self):
+        return self.m["parts"] + [q for sb in self.subs.values() for q in sb["parts"]]
 
     # ---- chrome -------------------------------------------------------
     def _page(self, footer=True):
@@ -68,13 +79,25 @@ class Book:
             self._icons[k] = _img(part_icon(self.cat.by_id[part_id], self.cat.colors[color]["hex"]))
         return self._icons[k]
 
-    def render(self, upto, highlight=(), view=0, px=760):
-        shown = [p for p in self.m["parts"] if p.get("step", 0) <= upto]
-        top = max((p["y"] + p["h"] for p in shown), default=1)
-        NX, NZ, NY = self.shape
-        frame = (NX, NZ, int(min(NY, max(NY * 0.25, top + 9))))
-        im = render_parts(shown, self.shape, self.colors, self.cat, view=view,
-                          highlight=set(highlight), size=(px, px), framing=frame)
+    def render(self, upto, highlight=(), view=0, px=760, sub=None, attach=None):
+        """The model after step `upto` from quarter view `view`. sub: draw that panel on its own
+        (it is built flat); attach: highlight that panel on the model."""
+        if sub:
+            sb = self.subs[sub]
+            shown = [q for q in sb["parts"] if q.get("step", 0) <= upto]
+            im = render_parts(shown, sb["grid"], sb["colors"], self.cat, view=view,
+                              highlight=set(highlight), size=(px, px))
+        else:
+            shown = [p for p in self.m["parts"] if p.get("step", 0) <= upto]
+            top = max((p["y"] + p["h"] for p in shown), default=1)
+            NX, NZ, NY = self.shape
+            panels = [dict(spec=sb["spec"], parts=sb["parts"], colors=sb["colors"], hl=(name == attach))
+                      for name, sb in self.subs.items() if self.attach_at.get(name, 10 ** 9) <= upto]
+            if panels:
+                top = max(top, max(pn["spec"].top for pn in panels))
+            frame = (NX, NZ, int(min(NY, max(NY * 0.25, top + 9))))
+            im = render_parts(shown, self.shape, self.colors, self.cat, view=view, panels=panels,
+                              highlight=set(highlight), size=(px, px), framing=frame)
         bb = im.getbbox()
         if bb:  # crop to the model with a small margin; placement keeps the aspect ratio
             m = int(px * 0.03)
@@ -106,7 +129,7 @@ class Book:
             c.drawString(42, 88, f"Design: {meta['author']}")
 
     def inventory(self):
-        rows = Counter((p["part"], p["color"]) for p in self.m["parts"])
+        rows = Counter((p["part"], p["color"]) for p in self.all_parts())
         items = sorted(rows.items(), key=lambda kv: (kv[0][1], kv[0][0]))
         cols, cw, ch = 3, (self.W - 72) / 3, 74
         per_page = cols * int((self.H - 150) // ch)
@@ -133,22 +156,38 @@ class Book:
         parts = self.m["parts"]
         per_page = 4
         cw, chh = (self.W - 72) / 2, (self.H - 90) / 2
-        prev_view = 0
+        prev = {None: 0}                 # last view, per main model / per panel
         for s0 in range(0, len(steps), per_page):
             self._page()
             c = self.c
             for k, st in enumerate(steps[s0:s0 + per_page]):
                 r, cc = divmod(k, 2)
                 x0, y0 = 36 + cc * cw, self.H - 50 - (r + 1) * chh
-                c.setStrokeColor(LINE)
-                c.setLineWidth(0.6)
-                c.rect(x0 + 4, y0 + 4, cw - 8, chh - 8, stroke=1, fill=0)
-                cnt = Counter((parts[i]["part"], parts[i]["color"]) for i in st["parts"])
+                kind, sub = st.get("kind"), st.get("sub")
+                if kind == "subassembly":         # a panel built on its own: boxed inset
+                    c.setFillColor(INSET)
+                    c.setStrokeColor(ACC)
+                    c.setLineWidth(1.2)
+                    c.roundRect(x0 + 4, y0 + 4, cw - 8, chh - 8, 8, stroke=1, fill=1)
+                    c.setFillColor(ACC)
+                    c.setFont("Helvetica-Bold", 8)
+                    c.drawRightString(x0 + cw - 14, y0 + chh - 20, f"SUB-BUILD: {sub.upper()}")
+                else:
+                    c.setStrokeColor(LINE)
+                    c.setLineWidth(0.6)
+                    c.rect(x0 + 4, y0 + 4, cw - 8, chh - 8, stroke=1, fill=0)
+                pool = self.subs[sub]["parts"] if kind == "subassembly" else parts
+                cnt = Counter((pool[i]["part"], pool[i]["color"]) for i in st["parts"])
                 per_row = max(1, int((cw - 80) // 44))
-                rows = min(2, -(-len(cnt) // per_row))
+                rows = min(2, -(-len(cnt) // per_row)) if cnt else 1
                 img_h = chh - 60 - rows * 46
-                draw_indexed(c, self.render(st["n"], st["parts"], st["view"], px=620), x0 + 14, y0 + 12,
-                            cw - 28, img_h, preserveAspectRatio=True, anchor="c")
+                if kind == "attach":
+                    im = self.render(st["n"], (), st["view"], px=620, attach=sub)
+                elif kind == "subassembly":
+                    im = self.render(st["n"], st["parts"], st["view"], px=620, sub=sub)
+                else:
+                    im = self.render(st["n"], st["parts"], st["view"], px=620)
+                draw_indexed(c, im, x0 + 14, y0 + 12, cw - 28, img_h, preserveAspectRatio=True, anchor="c")
                 c.setFillColor(INK)
                 c.setFont("Helvetica-Bold", 26)
                 c.drawString(x0 + 14, y0 + chh - 40, str(st["n"]))
@@ -165,9 +204,18 @@ class Book:
                 if len(items) > len(shown):
                     c.setFont("Helvetica", 8)
                     c.drawString(x0 + 60, y0 + chh - 150, f"+{len(items) - len(shown)} more")
-                if st["view"] != prev_view:
-                    self._turn(x0 + 14, y0 + chh - 90, (st["view"] - prev_view) % 4)
-                prev_view = st["view"]
+                key = sub if kind == "subassembly" else None
+                last = prev.get(key, 0)
+                if st["view"] != last:
+                    self._turn(x0 + 14, y0 + chh - 90, (st["view"] - last) % 4)
+                prev[key] = st["view"]
+                if kind == "attach":
+                    c.setFont("Helvetica-Bold", 10)
+                    c.setFillColor(INK)
+                    c.drawString(x0 + 60, y0 + chh - 34, f"Attach the {sub} panel")
+                    c.setFont("Helvetica", 8.5)
+                    c.setFillColor(SOFT)
+                    c.drawString(x0 + 60, y0 + chh - 48, "Tip it up and press it onto the side studs.")
                 if st.get("kind") == "overhang":
                     c.setFont("Helvetica-Oblique", 8)
                     c.setFillColor(SOFT)

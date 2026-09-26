@@ -67,12 +67,16 @@ def fit(shape, W, H, pad=0.06):
 
 
 def render_grid(G, colors, studs, highlight=None, ghost=None, size=(900, 900), view=0,
-                framing=None, bg=(255, 255, 255, 0), ss=2, fade=None, geom=None, stud_grid=None):
+                framing=None, bg=(255, 255, 255, 0), ss=2, fade=None, geom=None, stud_grid=None,
+                boxes=None):
     """G: int grid (x, z, y) of ids (-1 empty). colors[id] -> hex, studs[id] -> bool.
     highlight: set of ids drawn with accent outline. fade: set of ids drawn washed out.
     framing: (shape, W, H) to keep scale fixed across steps (use the full model).
     geom: {id: part dict} for shaped parts (slopes, rounds), in G's frame (so view must be 0;
-    use render_parts to rotate). stud_grid: per-cell studs on top, overriding `studs`."""
+    use render_parts to rotate). stud_grid: per-cell studs on top, overriding `studs`.
+    boxes: extra world boxes (mm, in G's frame) drawn in depth order with the cells, e.g.
+    sideways panels: {lo, hi, color, hl, faces: subset of top/fx/fz, same: directions whose
+    neighbour belongs to the same part (no outline there)}."""
     if geom and view:
         raise ValueError("render shaped parts with render_parts (rotates the parts, not the grid)")
     G = rotate_grid(G, view)
@@ -90,7 +94,8 @@ def render_grid(G, colors, studs, highlight=None, ghost=None, size=(900, 900), v
     highlight = highlight or set()
     fade = fade or set()
 
-    if not (G >= 0).any():
+    boxes = boxes or []
+    if not (G >= 0).any() and not boxes:
         return img.resize((W, H), Image.LANCZOS)
     # neighbour lookups on a padded grid (-1 = empty), all vectorised
     Gp = np.pad(G, 1, constant_values=-1)
@@ -115,7 +120,7 @@ def render_grid(G, colors, studs, highlight=None, ghost=None, size=(900, 900), v
     xs, zs, ys = np.nonzero(vis_m)
     depth = ((xs + .5) * STUD_MM * DIR[0] + (ys + .5) * PLATE_MM * DIR[1] + (zs + .5) * STUD_MM * DIR[2])
     order = np.lexsort((ys, zs, xs, depth))            # back to front, ties as before
-    xs, zs, ys = xs[order], zs[order], ys[order]
+    xs, zs, ys, depth = xs[order], zs[order], ys[order], depth[order]
     pid_a = G[xs, zs, ys]
     same = {k: (nb(*k)[xs, zs, ys] == pid_a) for k in
             ((0, 0, 1), (0, 0, -1), (-1, 0, 0), (1, 0, 0), (0, -1, 0), (0, 1, 0))}
@@ -137,12 +142,15 @@ def render_grid(G, colors, studs, highlight=None, ghost=None, size=(900, 900), v
     fcache = {}
     rows = zip(pid_a.tolist(), *[f.tolist() for f in flags])
     cell_stud = stud_grid[xs, zs, ys].tolist() if stud_grid is not None else None
-    for i, (pid, top, fx, fz, s_up, s_dn, s_xm, s_xp, s_zm, s_zp) in enumerate(rows):
+    rows = list(rows)
+
+    def draw_cell(i, row):
+        pid, top, fx, fz, s_up, s_dn, s_xm, s_xp, s_zm, s_zp = row
         if pid in geom:
             _draw_shaped(d, geom[pid], int(xs[i]), int(zs[i]), int(ys[i]), G, colors[pid],
                          pid in highlight, pid in fade, (s, ox, oy), lw, hw,
                          bool(cell_stud[i]) if cell_stud is not None else False, fx, fz)
-            continue
+            return
         if pid not in fcache:
             base = hex_to_rgb(colors[pid])
             if pid in fade:
@@ -181,6 +189,49 @@ def render_grid(G, colors, studs, highlight=None, ghost=None, size=(900, 900), v
                 d.rectangle([cx - rx, cy - hh, cx + rx, cy], fill=c_sd)
                 d.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=c_sd)
                 d.ellipse([cx - rx, cy - hh - ry, cx + rx, cy - hh + ry], fill=c_sl, outline=s_ec, width=s_w)
+
+
+    def P3(q):
+        u, v = proj(q[0], q[1], q[2])
+        return (ox + s * u, oy + s * v)
+
+    def draw_box(bx):
+        base = hex_to_rgb(bx["color"])
+        ec = ACCENT if bx.get("hl") else _edge_col(base)
+        ew = hw if bx.get("hl") else lw
+        (X0, Y0, Z0), (X1, Y1, Z1) = bx["lo"], bx["hi"]
+        same = bx.get("same", ())
+        faces = {"fz": ([(X0, Y0, Z1), (X1, Y0, Z1), (X1, Y1, Z1), (X0, Y1, Z1)], 0.62,
+                        ["-y", "+x", "+y", "-x"]),
+                 "fx": ([(X1, Y0, Z0), (X1, Y0, Z1), (X1, Y1, Z1), (X1, Y1, Z0)], 0.8,
+                        ["-y", "+z", "+y", "-z"]),
+                 "top": ([(X0, Y1, Z0), (X1, Y1, Z0), (X1, Y1, Z1), (X0, Y1, Z1)], None,
+                         ["-z", "+x", "+z", "-x"])}
+        for f in ("fz", "fx", "top"):
+            if f not in bx["faces"]:
+                continue
+            quad, shade, edges = faces[f]
+            fill = _lift(base, 0.12) if shade is None else _shade(base, shade)
+            q = [P3(c) for c in quad]
+            d.polygon(q, fill=fill)
+            for m, e in enumerate(edges):
+                if e not in same:
+                    d.line([q[m], q[(m + 1) % 4]], fill=ec, width=ew)
+
+    if not boxes:
+        for i, row in enumerate(rows):
+            draw_cell(i, row)
+    else:
+        seq = [(float(depth[i]), 0, i) for i in range(len(rows))]
+        for b, bx in enumerate(boxes):
+            c = (np.array(bx["lo"]) + np.array(bx["hi"])) / 2
+            seq.append((float(c @ DIR), 1, b))
+        seq.sort(key=lambda t: (t[0], t[1], t[2]))
+        for _, kind, k in seq:
+            if kind == 0:
+                draw_cell(k, rows[k])
+            else:
+                draw_box(boxes[k])
     return img.resize((W, H), Image.LANCZOS)
 
 
@@ -391,8 +442,57 @@ def stud_grid_of(parts, shape):
     return g
 
 
-def render_parts(parts, shape, colors, catalog=None, view=0, **kw):
-    """Render a list of part dicts (any shapes) from quarter view `view`. colors: {id: hex}."""
+_DIR_NAMES = {(1, 0, 0): "+x", (-1, 0, 0): "-x", (0, 1, 0): "+y", (0, -1, 0): "-y",
+              (0, 0, 1): "+z", (0, 0, -1): "-z"}
+_FACE_OF = {"+x": "fx", "+y": "top", "+z": "fz"}
+
+
+def _rot_vec(v, k):
+    x, y, z = v
+    return [(x, y, z), (z, y, -x), (-x, y, -z), (-z, y, x)][k % 4]
+
+
+def _rot_point(q, k, shape):
+    NX, NZ = shape[0] * STUD_MM, shape[1] * STUD_MM
+    x, y, z = q
+    return [(x, y, z), (z, y, NX - x), (NX - x, y, NZ - z), (NZ - z, y, x)][k % 4]
+
+
+def panel_boxes(spec, pparts, colors, shape, view=0, hl=False):
+    """World boxes (in view `view`'s frame) for a sideways panel attached to the model: one per
+    panel cell, with its exposed faces and the directions where the neighbour is the same part.
+    colors: {panel part id: hex}."""
+    W, H, D = spec.W, spec.H, spec.D
+    occ = -np.ones((W, H, D), dtype=np.int64)            # panel x, z (rows down), y (layers out)
+    for q in pparts:
+        occ[q["x"]:q["x"] + q["dx"], q["z"]:q["z"] + q["dz"], q["y"]:q["y"] + q["h"]] = q["id"]
+    R = spec.rotation()
+    out = []
+    for i, j, k in np.argwhere(occ >= 0):
+        pid = int(occ[i, j, k])
+        exposed, same = [], []
+        for lx, ly, lz in ((1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)):
+            a, b, c = i + lx, j + lz, k + ly
+            inside = 0 <= a < W and 0 <= b < H and 0 <= c < D
+            nb = int(occ[a, b, c]) if inside else -1
+            w = R @ np.array([lx, ly, lz], dtype=float)
+            name = _DIR_NAMES[tuple(int(round(v)) for v in _rot_vec(w, view))]
+            if nb == pid:
+                same.append(name)
+            elif nb < 0 and not (ly == -1 and k == 0):   # the back of layer 0 is against the wall
+                exposed.append(name)
+        lo, hi = spec.local_box_world(i, k, j, i + 1, k + 1, j + 1)
+        corners = [_rot_point((x, y, z), view, shape) for x in (lo[0], hi[0]) for y in (lo[1], hi[1])
+                   for z in (lo[2], hi[2])]
+        c = np.array(corners)
+        out.append({"lo": tuple(c.min(0)), "hi": tuple(c.max(0)), "color": colors[pid], "hl": hl,
+                    "faces": {_FACE_OF[e] for e in exposed if e in _FACE_OF}, "same": set(same)})
+    return out
+
+
+def render_parts(parts, shape, colors, catalog=None, view=0, panels=None, **kw):
+    """Render a list of part dicts (any shapes) from quarter view `view`. colors: {id: hex}.
+    panels: attached sideways panels, [{spec, parts, colors: {id: hex}, hl}]."""
     rp, rshape = rotate_parts(parts, shape, view)
     G = model_grid(rp, rshape)
     geom = {}
@@ -408,8 +508,11 @@ def render_parts(parts, shape, colors, catalog=None, view=0, **kw):
     framing = kw.pop("framing", None)
     if framing is not None and view % 2:
         framing = (framing[1], framing[0], framing[2])
+    boxes = []
+    for pn in panels or []:
+        boxes += panel_boxes(pn["spec"], pn["parts"], pn["colors"], shape, view, pn.get("hl", False))
     return render_grid(G, colors, {}, geom=geom, stud_grid=stud_grid_of(rp, rshape),
-                       framing=framing, view=0, **kw)
+                       framing=framing, view=0, boxes=boxes, **kw)
 
 
 def visible_samples(G, view=0, spp=4):

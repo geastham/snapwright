@@ -16,8 +16,8 @@ Current milestone: **M3 Sideways subassemblies (SNOT)** (branch `m3-snot`). M1 a
 - [x] Steps: panel steps (`kind: subassembly`) then an `attach` step after the last anchor
 - [x] model.json 0.4: `subassemblies` [{name, side, grid, transform, anchors, parts}];
       reader for 0.3
-- [ ] Book: panel steps in a boxed inset; attach step; renderer draws panels in world views
-- [ ] Viewer: panels placed by their transform; attach animation
+- [x] Book: panel steps in a boxed inset; attach step; renderer draws panels in world views
+- [x] Viewer: panels placed by their transform; attach animation
 - [ ] LDraw export of panels (+ ldraw_check, LeoCAD); BOM includes panel parts
 - [ ] Example with a SNOT face; tests (oracles per panel); docs; PR; merge
 
