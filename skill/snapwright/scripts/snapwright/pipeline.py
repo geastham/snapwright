@@ -21,12 +21,14 @@ from .validate import connection_graph, occupancy, report_lines, validate, verdi
 DISCLAIMER = ("Unofficial fan design. Not affiliated with, sponsored or endorsed by the LEGO Group "
               "or any other brick manufacturer.")
 ASSETS = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "assets"))
-SCHEMA = "snapwright.model/0.2"
+SCHEMA = "snapwright.model/0.3"
 
 
 def load_model(path_or_dict) -> dict:
     """Read model.json, upgrading older schemas in memory so every output can be regenerated.
 
+    0.2 -> 0.3: parts may be shaped (shape, dir, top_cells, bottom_cells: per-cell studs and
+    sockets); 0.2 files have only box parts, so nothing changes but the schema tag.
     0.1 -> 0.2: steps gain `level`; stats gain added_cells, studded_cells, floating_voxels,
     design_voxels (0 when unknown); necks were a per-level heuristic ({plate, strength,
     parts_above}) and are kept as they are, with mass_g unknown (None)."""
@@ -34,8 +36,12 @@ def load_model(path_or_dict) -> dict:
     schema = m.get("schema", "")
     if schema == SCHEMA:
         return m
+    if schema == "snapwright.model/0.2":
+        m["schema"] = SCHEMA
+        m.setdefault("meta", {}).setdefault("upgraded_from", schema)
+        return m
     if schema != "snapwright.model/0.1":
-        raise SystemExit(f"unknown model schema {schema!r}; this snapwright reads 0.1 and 0.2")
+        raise SystemExit(f"unknown model schema {schema!r}; this snapwright reads 0.1 to 0.3")
     parts = m["parts"]
     for st in m["steps"]:
         st.setdefault("level", min(parts[i]["y"] for i in st["parts"]))
