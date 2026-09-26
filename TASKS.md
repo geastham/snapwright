@@ -4,15 +4,15 @@ Current milestone: **M2 Parts vocabulary v2** (branch `m2-parts-v2`, stacked on 
 Spec: SPEC.md §5 M2 plus kickoff notes (connection metadata, renderer, bracing).
 
 ## M2 checklist
-- [ ] Catalog 0.2: connection metadata per part (top studs / bottom sockets per cell, shape,
+- [x] Catalog 0.2: connection metadata per part (top studs / bottom sockets per cell, shape,
       LDraw file + native orientation/origin, BrickLink/Rebrickable ids); reader for 0.1
-- [ ] New parts: slopes 45 (3040, 3039), 33 (4286, 3298), cheese 30 (54200, 85984), inverted 45
+- [x] New parts: slopes 45 (3040, 3039), 33 (4286, 3298), cheese 30 (54200, 85984), inverted 45
       (3665, 3660), round plate/tile 1x1 and 2x2 (4073, 98138, 4032, 14769), round bricks
       (3062b, 3941), big plates (3958, 3036, 41539)
-- [ ] Connection model: per-cell studs/sockets in validator, packer support map, steps, oracles
-- [ ] Surface-normal pass: slopes on stair edges of tapers/curves, inverted slopes under
+- [x] Connection model: per-cell studs/sockets in validator, packer support map, steps, oracles
+- [x] Surface-normal pass: slopes on stair edges of tapers/curves, inverted slopes under
       overhangs, rounds on convex corners and thin columns; counted and reported
-- [ ] Renderer draws slopes, inverted slopes and rounds (book steps, icons, previews)
+- [x] Renderer draws slopes, inverted slopes and rounds (book steps, icons, previews)
 - [ ] Viewer draws slopes and rounds
 - [ ] LDraw export for new parts + round-trip test; LeoCAD check documented with screenshots
 - [ ] `Model.hollow(wall=2, brace_every=N)` with internal bracing columns; hollow shells pass

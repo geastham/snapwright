@@ -16,7 +16,7 @@ from reportlab import rl_config
 from reportlab.pdfgen import canvas
 
 from .pdfimage import draw_indexed
-from .render import model_grid, part_icon, render_grid
+from .render import part_icon, render_parts
 from .validate import report_lines
 
 INK = HexColor("#1d2327")
@@ -69,13 +69,12 @@ class Book:
         return self._icons[k]
 
     def render(self, upto, highlight=(), view=0, px=760):
-        G = model_grid(self.m["parts"], self.shape, upto_step=upto)
-        built = [p["y"] + p["h"] for p in self.m["parts"] if p.get("step", 0) <= upto]
-        top = max(built) if built else 1
+        shown = [p for p in self.m["parts"] if p.get("step", 0) <= upto]
+        top = max((p["y"] + p["h"] for p in shown), default=1)
         NX, NZ, NY = self.shape
         frame = (NX, NZ, int(min(NY, max(NY * 0.25, top + 9))))
-        im = render_grid(G, self.colors, self.studs, highlight=set(highlight), view=view,
-                         size=(px, px), framing=frame)
+        im = render_parts(shown, self.shape, self.colors, self.cat, view=view,
+                          highlight=set(highlight), size=(px, px), framing=frame)
         bb = im.getbbox()
         if bb:  # crop to the model with a small margin; placement keeps the aspect ratio
             m = int(px * 0.03)

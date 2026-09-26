@@ -229,8 +229,13 @@ def validate(parts, shape, catalog=None, with_necks=True) -> dict:
         dims = {"width_cm": 0, "depth_cm": 0, "height_cm": 0}
 
     kinds: dict = {}
+    shaped: dict = {}
+    shaped_cells = 0
     for p in parts:
         kinds[p["kind"]] = kinds.get(p["kind"], 0) + 1
+        if p.get("shape", "box") != "box":
+            shaped[p["shape"]] = shaped.get(p["shape"], 0) + 1
+            shaped_cells += p["dx"] * p["dz"] * p["h"]
 
     return {
         "parts": n,
@@ -247,6 +252,8 @@ def validate(parts, shape, catalog=None, with_necks=True) -> dict:
         "com_margin_mm": round(margin, 1),
         "unverified_combos": unverified,
         "kinds": kinds,
+        "shaped": shaped,
+        "shaped_cells": shaped_cells,
         **dims,
         "per_part_studs": per_part,
     }
@@ -296,6 +303,12 @@ def report_lines(stats) -> list[tuple[str, str]]:
     for n, one, many in changes:
         if n:
             out.append(("change", f"Auto-repair: {n:,} {one if n == 1 else many}"))
+    sh = st.get("shaped") or {}
+    if sh:
+        names = {"slope": ("slope", "slopes"), "slope_inv": ("inverted slope", "inverted slopes"),
+                 "round": ("round part", "round parts")}
+        bits = [f"{n} {names[k][0] if n == 1 else names[k][1]}" for k, n in sorted(sh.items()) if k in names]
+        out.append(("note", "Surface shaping: " + ", ".join(bits) + " smooth the voxel steps"))
     necks = st.get("necks") or []
     for nk in necks[:3]:
         g = f" ({nk['mass_g']:.0f} g)" if nk.get("mass_g") is not None else ""

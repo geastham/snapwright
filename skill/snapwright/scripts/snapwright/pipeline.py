@@ -106,7 +106,7 @@ class Timer:
 
 def build(design, out, seeds=8, finish="tiles", audience="adult", max_per_step=None,
           book=True, viewer=True, page="letter", strict=True, catalog=None, log=print,
-          timer=None):
+          timer=None, shapes=True):
     """Full pipeline from a design file to every output in `out`. Returns model.json."""
     tm = timer or Timer()
     cat = catalog or Catalog()
@@ -115,7 +115,7 @@ def build(design, out, seeds=8, finish="tiles", audience="adult", max_per_step=N
     os.makedirs(out, exist_ok=True)
     model, V_final = solve(m, cat, seeds=seeds, finish=finish, audience=audience,
                            max_per_step=max_per_step, design_file=os.path.basename(design),
-                           log=log, timer=tm)
+                           log=log, timer=tm, shapes=shapes)
     ok = model["stats"]["passed"]
     parts = model["parts"]
     slug = model["meta"]["slug"]
@@ -149,14 +149,15 @@ def build(design, out, seeds=8, finish="tiles", audience="adult", max_per_step=N
 
 
 def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max_per_step=None,
-          design_file="design.py", log=print, timer=None):
+          design_file="design.py", log=print, timer=None, shapes=True):
     """Design model -> parts, checks and steps, in memory. Returns (model dict, built voxels)."""
     tm = timer or Timer()
     log(f"[1/6] design: {m.title} - {m.voxel_count():,} voxels on {m.NX}x{m.NZ}x{m.NY}")
     _warn_islands(m, log)
 
     log("[2/6] brickify")
-    parts, stats, V_final = brickify(m.V, m.palette, cat, seeds=seeds, finish=finish, log=log)
+    parts, stats, V_final = brickify(m.V, m.palette, cat, seeds=seeds, finish=finish, log=log,
+                                     shapes=shapes)
     tm.lap("brickify")
     if stats.get("recolored_cells"):
         log(f"  note: {stats['recolored_cells']} surface cells recoloured to keep the model in one piece")
@@ -197,7 +198,8 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
         "meta": {"title": m.title, "subtitle": m.subtitle, "author": m.author,
                  "slug": slugify(m.title), "disclaimer": DISCLAIMER,
                  "created": _dt.date.today().isoformat(), "generator": f"snapwright {__version__}",
-                 "design_file": design_file, "finish": finish, "audience": audience},
+                 "design_file": design_file, "finish": finish, "audience": audience,
+                 "shapes": shapes},
         "grid": {"shape": list(m.V.shape), "stud_mm": 8.0, "plate_mm": 3.2},
         "colors": {k: cat.colors[k] for k in used},
         "catalog_names": {p["part"]: p["name"] for p in parts},

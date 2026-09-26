@@ -20,6 +20,28 @@ def _model(cat):
     return model
 
 
+SHAPED = '''
+model = Model(20, 20, 30, title="Shaped Export")
+model.cone(10, 10, 9.5, 2.5, 0, 16, "white")
+model.cone(10, 10, 2.5, 7.5, 16, 26, "red")
+model.cylinder(10, 10, 0.8, 26, 30, "black")
+'''
+
+
+def test_ldraw_round_trip_shaped_parts(cat):
+    """Slopes in all four directions, inverted slopes and rounds survive export + re-import."""
+    model, _ = solve(model_from_src(SHAPED), catalog=cat, seeds=1)
+    shapes = {(p.get("shape"), p.get("dir")) for p in model["parts"] if p.get("shape", "box") != "box"}
+    assert {("slope", d) for d in range(4)} <= shapes, shapes
+    assert any(s == "slope_inv" for s, _ in shapes) and any(s == "round" for s, _ in shapes)
+    back = exporters.parse_ldraw(exporters.to_ldraw(model, cat), cat)
+    key = lambda p: (p["part"], p["color"], p["x"], p["z"], p["y"], p["dx"], p["dz"], p["h"],  # noqa: E731
+                     p.get("dir") if p.get("shape", cat.by_id[p["part"]].shape) in ("slope", "slope_inv") else None)
+    assert sorted(map(key, back)) == sorted(map(key, model["parts"]))
+    text = exporters.to_ldraw(model, cat)
+    assert "3040b.dat" in text or "3039.dat" in text
+
+
 def test_ldraw_round_trip(cat):
     """Export to LDraw and read it back: same parts, colours, positions, sizes and steps.
     Checks the origin (top centre), -Y up, Z flip and the 90 degree turn for Z-long parts."""
