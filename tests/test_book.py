@@ -54,3 +54,22 @@ def test_book_has_bags_labels_and_named_colours(tmp_path, cat):
         Book(json.loads((tmp_path / "out" / "model.json").read_text()), Catalog(),
              str(tmp_path / f"{page}.pdf"), page=page, log=lambda *a: None).build()
         assert (tmp_path / f"{page}.pdf").stat().st_size > 20_000
+
+
+def test_viewer_controls_and_no_external_fetches(tmp_path, cat):
+    import shutil
+    src = tmp_path / "d.py"
+    src.write_text('model = Model(8, 8, 9, title="Viewer Test")\nmodel.box(0, 0, 0, 8, 8, 9, "red")\n')
+    pipeline.build(str(src), str(tmp_path / "out"), seeds=1, book=False, log=lambda *a: None)
+    html = (tmp_path / "out" / "viewer-test-viewer.html").read_text()
+    for el in ('id="bPrev"', 'id="bNext"', 'id="bPlay"', 'id="bRec"', 'id="bExplode"', 'aria-label="Previous step"',
+               "MediaRecorder", "ArrowRight"):
+        assert el in html, el
+    urls = set(re.findall(r"https?://[^\s\"'`)]+", html))
+    assert urls and all(u.startswith("https://cdn.jsdelivr.net/npm/three@") for u in urls), urls
+    node = shutil.which("node")
+    if node:                                             # the viewer's module parses
+        js = re.search(r'<script type="module">(.*?)</script>', html, re.S).group(1)
+        (tmp_path / "v.mjs").write_text(js)
+        r = subprocess.run([node, "--check", str(tmp_path / "v.mjs")], capture_output=True, text=True)
+        assert r.returncode == 0, r.stderr

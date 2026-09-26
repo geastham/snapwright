@@ -12,10 +12,11 @@ Current milestone: **M5 Book and viewer polish** (branch `m5-polish`). M1-M4 mer
 - [x] Colour names next to every callout icon (never colour alone); inventory already named
 - [x] X-ray outline for a new part still hidden in its step's view (carried from M1)
 - [x] A4 and Letter both laid out correctly
-- [ ] Viewer: step-by-step mode (prev/next buttons and arrow keys), new parts highlighted,
+- [x] Viewer: step-by-step mode (prev/next buttons and arrow keys), new parts highlighted,
       exploded view of sideways panels, record-to-video (WebM), no fetches beyond three.js
-- [ ] Viewer accessibility: colour names with swatches, labelled controls
-- [ ] Tests, visual inspection (PDF pages, viewer screenshots), docs, PR, merge
+- [x] Viewer accessibility: colour names with swatches, labelled controls
+- [x] Tests, visual inspection (PDF pages, viewer screenshots), docs
+- [ ] PR, merge
 
 ## M4 (done, PR #5)
 

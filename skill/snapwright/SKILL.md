@@ -88,9 +88,11 @@ Builds are deterministic: the same design file and seeds give the same model. Ad
 
 ## 4. Outputs (all in `out/`)
 
-- `<slug>-instructions.pdf`: cover, parts inventory, numbered steps with callouts, finale
-- `<slug>-viewer.html`: self-contained 3D viewer with build playback, parts list, checks
-  (open with `?step=N` to start paused at step N)
+- `<slug>-instructions.pdf`: cover, parts inventory, bags of ~150 parts each with a parts page,
+  numbered steps and sub-steps with named-colour callouts, progress bar, finale
+- `<slug>-viewer.html`: self-contained 3D viewer: build playback, step-by-step (arrow keys)
+  with new parts highlighted, exploded panels, record to video, parts list, checks
+  (`?step=N` opens paused at step N; `&explode=1` pulls panels out)
 - `<slug>.ldr`: LDraw with STEP markers (opens in LeoCAD, Studio, Mecabricks)
 - `<slug>-bricklink.xml`, `<slug>-rebrickable.csv`, `<slug>-parts.csv`
 - `model.json`: canonical model (schema in `references/geometry-and-checks.md`)
