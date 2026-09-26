@@ -28,6 +28,7 @@
   #checks.open, #bom.open { display:block; }
   h2 { margin:0 0 8px; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--soft); }
   ul { margin:0; padding-left:18px; } li { margin:3px 0; }
+  li.change { color:var(--acc); } li.fail { color:var(--acc); font-weight:700; } li.note { color:var(--soft); }
   .row { display:grid; grid-template-columns:14px 1fr auto; gap:8px; align-items:center; font-size:12.5px; padding:2px 0; }
   .sw { width:12px; height:12px; border-radius:3px; border:1px solid rgba(0,0,0,.2); }
   footer { left:50%; transform:translateX(-50%); bottom:calc(18px + env(safe-area-inset-bottom,0px)); display:flex; gap:10px; align-items:center;
@@ -67,7 +68,8 @@ $('disc').textContent = M.meta.disclaimer || '';
 
 // ---------- scene ----------
 const canvas = $('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setClearColor(0x000000, 0);   // transparent: the themed page background shows through
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 const scene = new THREE.Scene();
 const cam = new THREE.PerspectiveCamera(35, 1, 1, 5000);
@@ -120,6 +122,13 @@ function place(t) {                 // t = build time in steps (fractional)
 
 // ---------- playback ----------
 let T = 0, playing = true;
+{ // ?step=N opens the viewer paused at that step (handy for links and screenshots)
+  const q = new URLSearchParams(location.search).get('step');
+  if (q !== null) {
+    T = Math.max(0, Math.min(NSTEP, +q || 0)) + 0.999; playing = false;
+    $('bPlay').textContent = 'Play'; $('scrub').value = Math.round(T / (NSTEP + 1) * 1000);
+  }
+}
 const rate = Math.max(1.2, NSTEP / 40);  // whole build in ~40 s
 $('bPlay').onclick = () => { playing = !playing; $('bPlay').textContent = playing ? 'Pause' : 'Play'; if (playing && T >= NSTEP + 1) T = 0; };
 $('scrub').oninput = e => { T = (+e.target.value / 1000) * (NSTEP + 1); playing = false; $('bPlay').textContent = 'Play'; };
@@ -127,7 +136,7 @@ function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h
 addEventListener('resize', resize); resize();
 let last = performance.now();
 renderer.setAnimationLoop(now => {
-  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now;  // first frame can predate `last`
   if (playing) { T = Math.min(NSTEP + 1, T + dt * rate); if (T >= NSTEP + 1) { playing = false; $('bPlay').textContent = 'Replay'; } }
   place(T);
   $('now').textContent = Math.min(NSTEP, Math.floor(T));
@@ -137,15 +146,8 @@ renderer.setAnimationLoop(now => {
 
 // ---------- panels ----------
 const st = M.stats;
-$('checkList').innerHTML = [
-  `${st.parts.toLocaleString()} parts in ${st.unique_lots} lots`,
-  `${st.connections.toLocaleString()} stud connections, ${st.structures} structure`,
-  `${st.collisions} collisions, ${st.floating} floating parts`,
-  `${st.weak_parts.length} single-stud joints`,
-  `Centre of mass ${st.com_margin_mm} mm inside the footprint`,
-  `≈ ${(st.mass_g / 1000).toFixed(2)} kg, ${st.width_cm} × ${st.depth_cm} × ${st.height_cm} cm`,
-  st.unverified_combos.length ? `${st.unverified_combos.length} part-colour combos to verify` : 'All part-colour combos in the catalog',
-].map(t => `<li>${t}</li>`).join('');
+$('checkList').innerHTML = M.report.map(r =>
+  `<li class="${r.kind}">${r.text.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</li>`).join('');
 const byColor = {};
 for (const [pid, c, qn] of M.bom) (byColor[c] ||= []).push([pid, qn]);
 $('bomList').innerHTML = Object.entries(byColor).map(([c, rows]) =>

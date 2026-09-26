@@ -38,6 +38,37 @@ def to_ldraw(model, catalog) -> str:
     return out.getvalue()
 
 
+def parse_ldraw(text, catalog):
+    """Read an .ldr written by to_ldraw back into grid boxes (the inverse mapping).
+    Returns [{part, color, x, z, y, dx, dz, h, rot, step}]. Only handles the axis-aligned
+    placements we write; used to check the export round-trips exactly."""
+    by_ldraw = {c["ldraw"]: k for k, c in catalog.colors.items()}
+    out, step = [], 1
+    for line in text.splitlines():
+        f = line.split()
+        if not f:
+            continue
+        if f[0] == "0" and len(f) > 1 and f[1] == "STEP":
+            step += 1
+            continue
+        if f[0] != "1":
+            continue
+        col, X, Y, Z = int(f[1]), float(f[2]), float(f[3]), float(f[4])
+        m = [float(v) for v in f[5:14]]
+        pid = f[14][:-4] if f[14].endswith(".dat") else f[14]
+        t = catalog.by_id[pid]
+        if m == [1, 0, 0, 0, 1, 0, 0, 0, 1]:
+            dx, dz, rot = t.L, t.W, 0
+        elif m == [0, 0, 1, 0, 1, 0, -1, 0, 0]:
+            dx, dz, rot = t.W, t.L, 1
+        else:
+            raise ValueError(f"unsupported rotation in: {line}")
+        out.append({"part": pid, "color": by_ldraw[col], "rot": rot, "step": step,
+                    "x": round(X / 20 - dx / 2), "z": round(-Z / 20 - dz / 2),
+                    "y": round(-Y / 8) - t.h, "dx": dx, "dz": dz, "h": t.h})
+    return out
+
+
 def to_bricklink_xml(parts, catalog) -> str:
     rows = [f"  <ITEM><ITEMTYPE>P</ITEMTYPE><ITEMID>{escape(pid)}</ITEMID>"
             f"<COLOR>{catalog.colors[c]['bricklink']}</COLOR><MINQTY>{q}</MINQTY></ITEM>"

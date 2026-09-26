@@ -1,0 +1,15 @@
+# generated outputs (ship large PDFs as release assets)
+out/
+dist/
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+# OS
+.DS_Store
+# creation references may be private
+creations/*/reference/
+# instruction books and packaged skills are release assets, never commits
+*.pdf
+*.skill

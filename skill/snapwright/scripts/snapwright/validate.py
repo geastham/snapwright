@@ -6,7 +6,7 @@ Checks
   structures      connected components of the connection graph
   floating        parts not connected (through any path) to a part resting on the ground
   weak_parts      parts wider than 1x1 held by a single stud (they can swivel or pop off)
-  necks           plate boundaries where very few studs carry everything above
+  necks           pieces held on by very few studs (min cut on the connection graph)
   balance         centre of mass vs the ground footprint (convex hull), margin in mm
   availability    part-colour combos not verified against the catalog
 """
@@ -15,6 +15,7 @@ from __future__ import annotations
 import numpy as np
 
 STUD_MM, PLATE_MM = 8.0, 3.2
+MAX_TRIM_FRACTION = 0.01   # trimming more of the design than this means it needs support
 
 
 def part_mass_g(p) -> float:
@@ -97,7 +98,69 @@ def _margin(pt, hull):
     return best if inside else -best
 
 
-def validate(parts, shape, catalog=None) -> dict:
+def find_necks(parts, edges, shape, max_studs=3, min_parts=6):
+    """Weak points: for every plate boundary, each connected group of parts above it is a
+    load; its max flow (in studs) from the ground through the connection graph is the
+    fewest studs that hold it up. When that is <= max_studs, report the piece that would
+    break off (the side of the min cut away from the ground) if it has >= min_parts parts.
+    Several boundaries can find the same cut; each cut is reported once."""
+    from scipy.sparse import csr_matrix
+    from scipy.sparse.csgraph import breadth_first_order, connected_components, maximum_flow
+
+    n = len(parts)
+    if n == 0 or not edges:
+        return []
+    S, T = n, n + 1
+    BIG = 10 ** 6
+    ei = np.array([k for k in edges], dtype=np.int64).reshape(-1, 2)
+    ek = np.array(list(edges.values()), dtype=np.int64)
+    ground = np.array([p["id"] for p in parts if p["y"] == 0], dtype=np.int64)
+    ys = np.array([p["y"] for p in parts])
+    mass = np.array([part_mass_g(p) for p in parts])
+    base_r = np.concatenate([ei[:, 0], ei[:, 1], np.full(len(ground), S)])
+    base_c = np.concatenate([ei[:, 1], ei[:, 0], ground])
+    base_v = np.concatenate([ek, ek, np.full(len(ground), BIG)])
+    seen, found = set(), {}
+    for b in range(1, shape[2]):
+        up = np.nonzero(ys >= b)[0]
+        if len(up) < min_parts:
+            continue
+        keep = (ys[ei[:, 0]] >= b) & (ys[ei[:, 1]] >= b)
+        sub = csr_matrix((np.ones(int(keep.sum())), (ei[keep, 0], ei[keep, 1])), shape=(n, n))
+        _, lab = connected_components(sub, directed=False)
+        for comp in np.unique(lab[up]):
+            C = up[lab[up] == comp]
+            key = C.tobytes()
+            if key in seen:
+                continue
+            seen.add(key)
+            r = np.concatenate([base_r, C])
+            c = np.concatenate([base_c, np.full(len(C), T)])
+            v = np.concatenate([base_v, np.full(len(C), BIG)])
+            cap = csr_matrix((v.astype(np.int32), (r, c)), shape=(n + 2, n + 2))
+            res = maximum_flow(cap, S, T)
+            if res.flow_value == 0 or res.flow_value > max_studs:
+                continue          # floating (reported elsewhere) or strong enough
+            # residual reachability from the ground gives the cut nearest the ground
+            resid = (cap - res.flow).tocsr()
+            resid.data = np.where(resid.data > 0, 1, 0)
+            resid.eliminate_zeros()
+            reach = np.zeros(n + 2, dtype=bool)
+            reach[breadth_first_order(resid, S, directed=True, return_predecessors=False)] = True
+            piece = np.nonzero(~reach[:n])[0]
+            if len(piece) < min_parts:
+                continue
+            cut = tuple(sorted((int(i), int(j)) for i, j in ei
+                               if reach[i] != reach[j]))
+            if cut in found and found[cut]["plate"] <= b:
+                continue
+            found[cut] = {"plate": int(min(ys[piece])), "strength": int(res.flow_value),
+                          "parts_above": int(len(piece)), "mass_g": round(float(mass[piece].sum()), 1),
+                          "cut": [list(e) for e in cut]}
+    return sorted(found.values(), key=lambda d: (d["strength"], -d["parts_above"], d["plate"]))
+
+
+def validate(parts, shape, catalog=None, with_necks=True) -> dict:
     n = len(parts)
     occ, collisions = occupancy(parts, shape)
     edges = connection_graph(parts, occ)
@@ -113,21 +176,7 @@ def validate(parts, shape, catalog=None) -> dict:
 
     weak = [p["id"] for p in parts if p["dx"] * p["dz"] > 1 and per_part[p["id"]] == 1 and p["y"] > 0]
 
-    # necks: at each plate boundary, stud contacts starting there plus cells of parts that
-    # span straight through it; low totals under a lot of model are fragile points
-    NY = shape[2]
-    cross = np.zeros(NY + 1, dtype=int)
-    for (i, j), k in edges.items():
-        cross[parts[j]["y"]] += k
-    span = np.zeros(NY + 1, dtype=int)
-    starts = np.zeros(NY + 1, dtype=int)
-    for p in parts:
-        starts[p["y"]] += 1
-        for yy in range(p["y"] + 1, p["y"] + p["h"]):
-            span[yy] += p["dx"] * p["dz"]
-    above = np.cumsum(starts[::-1])[::-1]
-    necks = [{"plate": int(y), "strength": int(cross[y] + span[y]), "parts_above": int(above[y])}
-             for y in range(1, NY) if above[y] >= 6 and cross[y] + span[y] <= 3]
+    necks = find_necks(parts, edges, shape) if with_necks else []
 
     # balance
     mass = [part_mass_g(p) for p in parts]
@@ -191,6 +240,51 @@ def verdict(stats) -> tuple[bool, list[str]]:
         fails.append(f"{stats['floating']} floating parts")
     if stats["structures"] > 1:
         fails.append(f"{stats['structures']} separate structures")
+    if stats.get("floating_voxels"):
+        fails.append(f"{stats['floating_voxels']} design voxels don't touch the rest of the model "
+                     f"or the ground (join them in the design)")
+    removed = stats.get("trimmed_cells", 0)
+    if removed and removed > MAX_TRIM_FRACTION * max(1, stats.get("design_voxels", 0)):
+        fails.append(f"repairs trimmed {removed} design cells ({100 * removed / max(1, stats['design_voxels']):.1f}%); "
+                     f"add support in the design instead")
     if stats["com_margin_mm"] < 3:
         fails.append(f"centre of mass only {stats['com_margin_mm']} mm inside the footprint (tips over)")
     return (not fails), fails
+
+
+def report_lines(stats) -> list[tuple[str, str]]:
+    """The software checks as (kind, text) lines, kind = check | change | note. One source for
+    the CLI log, the book finale and the viewer, so the three always say the same thing.
+    Every automatic change the packer made to the design is a `change` line."""
+    st = stats
+    s_ = lambda n, w: f"{n:,} {w}" + ("" if n == 1 else "s")  # noqa: E731
+    out = [
+        ("check", f"{st['parts']:,} parts, {st['connections']:,} stud connections, "
+                  f"{s_(st['structures'], 'structure')}"),
+        ("check", f"{s_(st['collisions'], 'collision')}, {st['floating']} floating parts, "
+                  f"{s_(len(st['weak_parts']), 'single-stud joint')}"),
+        ("check", f"Centre of mass {st['com_margin_mm']} mm inside the base footprint"),
+        ("check", f"About {st['mass_g'] / 1000:.2f} kg, {st['width_cm']} x {st['depth_cm']} x "
+                  f"{st['height_cm']} cm (estimated)"),
+    ]
+    changes = [(st.get("recolored_cells", 0), "visible cell recoloured", "visible cells recoloured"),
+               (st.get("trimmed_cells", 0), "overhang cell trimmed", "overhang cells trimmed"),
+               (st.get("added_cells", 0), "support cell added", "support cells added"),
+               (st.get("studded_cells", 0), "top cell uses a studded plate instead of a tile",
+                "top cells use studded plates instead of tiles")]
+    for n, one, many in changes:
+        if n:
+            out.append(("change", f"Auto-repair: {n:,} {one if n == 1 else many}"))
+    necks = st.get("necks") or []
+    for nk in necks[:3]:
+        g = f" ({nk['mass_g']:.0f} g)" if nk.get("mass_g") is not None else ""
+        out.append(("note", f"Weak point: {nk['parts_above']} parts{g} from plate "
+                            f"{nk['plate']} up are held by {s_(nk['strength'], 'stud')}"))
+    if len(necks) > 3:
+        out.append(("note", f"... and {len(necks) - 3} more weak points held by 3 studs or fewer"))
+    if st.get("unverified_combos"):
+        out.append(("note", f"{len(st['unverified_combos'])} part-colour combos not yet verified "
+                            f"against a parts catalog"))
+    for f in st.get("failures", []):
+        out.append(("fail", f"FAIL: {f}"))
+    return out

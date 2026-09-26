@@ -8,10 +8,12 @@ instruction book, 3D build viewer and parts lists out.
 - **Check**: one structure, nothing floating, no collisions, balance, weak joints, colour availability.
 - **Document**: step-by-step PDF, three.js viewer with build playback, LDraw, BrickLink XML, Rebrickable CSV.
 
-Example: `examples/lighthouse` → 1,744 parts, 32.6 cm, 182 steps, all checks pass.
+Example: `examples/lighthouse` → 1,760 parts, 32.6 cm, 184 steps, all checks pass (about 20 s
+with the book on a laptop). `make bench` builds a 5,000-part keep in under 2 minutes.
 
 ```bash
 make setup
+make test           # unit, regression-fixture, property and golden tests (~40 s)
 make example        # builds examples/lighthouse/out/
 python skill/snapwright/scripts/sw.py preview my_design.py --out out/preview
 python skill/snapwright/scripts/sw.py build   my_design.py --out out --audience family
