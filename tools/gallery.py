@@ -10,12 +10,11 @@ its design file.
 """
 import json
 import os
-import shutil
 import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(ROOT, "skill", "snapwright", "scripts"))
+sys.path.insert(0, os.path.join(ROOT, "skills", "snapwright", "scripts"))
 
 from snapwright.book import Book  # noqa: E402
 from snapwright.catalog import Catalog  # noqa: E402
@@ -26,11 +25,13 @@ SEEDS = {"keep": 6, "lighthouse": 6}
 
 
 def build(name):
-    d = os.path.join(ROOT, "examples", name)
+    """name: an example (examples/<name>) or a folder path such as creations/creation-a."""
+    d = os.path.join(ROOT, name) if os.path.isdir(os.path.join(ROOT, name)) and "/" in name \
+        else os.path.join(ROOT, "examples", name)
     model = os.path.join(d, "out", "model.json")
     design = os.path.join(d, "design.py")
     if not os.path.exists(model) or os.path.getmtime(model) < os.path.getmtime(design):
-        subprocess.run([sys.executable, os.path.join(ROOT, "skill", "snapwright", "scripts", "sw.py"), "build",
+        subprocess.run([sys.executable, os.path.join(ROOT, "skills", "snapwright", "scripts", "sw.py"), "build",
                         design, "--out", os.path.join(d, "out"), "--seeds", str(SEEDS.get(name, 8))], check=True)
     return json.load(open(model)), os.path.join(d, "out")
 
@@ -52,7 +53,9 @@ def main(names):
         m, out = build(name)
         slug, st = m["meta"]["slug"], m["stats"]
         cover(m, cat, os.path.join(OUT, f"{slug}.png"))
-        shutil.copy(os.path.join(out, f"{slug}-viewer.html"), os.path.join(OUT, f"{slug}.html"))
+        # the gallery is served online: load three.js from the CDN (keeps each file under 1 MB)
+        from snapwright.pipeline import write_viewer
+        write_viewer(m, os.path.join(OUT, f"{slug}.html"), cat, embed_three=False)
         index.append({"example": name, "slug": slug, "title": m["meta"]["title"], "parts": st["parts"],
                       "height_cm": st["height_cm"], "steps": len({s["label"].split(".")[0] for s in m["steps"]}),
                       "passed": st["passed"]})

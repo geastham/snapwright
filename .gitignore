@@ -15,6 +15,7 @@ creations/*/reference/
 *.skill
 
 # skill-creator eval runs (large outputs)
-skill/snapwright-workspace/
-skill/snapwright/assets/.rebrickable/
+skills/snapwright-workspace/
+skills/snapwright/assets/.rebrickable/
 .venv
+*.zip

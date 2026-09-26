@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .catalog import DIRS, place_cells
+from .catalog import DIRS, corner_cells, place_cells
 
 
 def _nb(A, ux, uz, fill=False):
@@ -212,6 +212,83 @@ def find_shapes(V, req, catalog, finish="tiles", blocked=None, visible=None):
                 return False
         bx, bz = fx - (t.L - 1) * ux, fz - (t.L - 1) * uz       # back row: model goes on up
         return inside(bx, bz) and 1 <= rise(bx, bz, top) <= 2 * t.h
+
+    # ---- corner slopes where two slope runs meet ---------------------------------------------
+    # Without them a stepped cone shows open triangles where slopes facing different ways meet.
+    # Outside (convex) corner: a 2 x 2 at a step's corner, the high back cell b with the model
+    # rising behind it, the three front cells with air above and in front in both directions.
+    # Inside (concave) corner: the low cell c in the angle of an L of higher cells that rise.
+    def corner_try(t, dir_, bx, bz, y0):
+        x0, z0, cell = corner_cells(bx, bz, dir_)
+        cells_ij = [(cell(i, j), (i, j)) for i in range(2) for j in range(2)]
+        cells = [c for c, _ in cells_ij]
+        if not free(cells, y0, t.h):
+            return False
+        colour = _colour(req, [(cx, cz, yy) for cx, cz in cells for yy in range(y0, y0 + t.h)])
+        if colour is None:
+            return False
+        if y0 > 0 and not any(F[cx, cz, y0 - 1] for cx, cz in cells):
+            return False
+        claim(t, dir_, x0, z0, y0, 2, 2, cells_ij, colour)
+        return True
+
+    def corner_ok(t, dir_, bx, bz, top):
+        (ux, uz), (vx, vz) = DIRS[dir_], DIRS[(dir_ + 1) % 4]
+        fu, fv, fuv = (bx + ux, bz + uz), (bx + vx, bz + vz), (bx + ux + vx, bz + uz + vz)
+        if t.shape == "slope_cvx":
+            fronts, rising = (fu, fv, fuv), ((bx, bz),)
+            beyond = ((fu, ux, uz), (fuv, ux, uz), (fv, vx, vz), (fuv, vx, vz))
+        else:                            # the treads carry on beside c; only its diagonal drops
+            fronts, rising = (fuv,), (fu, fv)
+            beyond = (((fuv[0] + ux, fuv[1] + uz), vx, vz),)
+        for fx, fz in fronts:
+            if not inside(fx, fz) or not F[fx, fz, top] or up[fx, fz, top] or not visible[fx, fz, top]:
+                return False
+        for rx, rz in rising:
+            if not inside(rx, rz) or not 1 <= rise(rx, rz, top) <= 2 * t.h:
+                return False
+        for (fx, fz), ax, az in beyond:
+            nx, nz = fx + ax, fz + az
+            if inside(nx, nz) and (F[nx, nz, top] or F[nx, nz, top - 1]):
+                return False
+        # a corner joins two slope runs: each arm continues past the corner as a tread with a
+        # rising cell behind it (else it's a jag of a stepped curve, where a corner piece only
+        # blocks the straight slopes)
+        if t.shape == "slope_cvx":       # runs facing u and v go on along -v and -u
+            arms = (((bx + ux - vx, bz + uz - vz), (bx - vx, bz - vz)),
+                    ((bx + vx - ux, bz + vz - uz), (bx - ux, bz - uz)))
+        else:                            # runs facing u and v go on along +v and +u
+            cx0, cz0 = fuv
+            arms = (((cx0 + vx, cz0 + vz), (cx0 + vx - ux, cz0 + vz - uz)),
+                    ((cx0 + ux, cz0 + uz), (cx0 + ux - vx, cz0 + uz - vz)))
+        for (tx, tz), (rx, rz) in arms:
+            if not (inside(tx, tz) and inside(rx, rz)) or not F[tx, tz, top] or up[tx, tz, top]:
+                return False
+            if not 1 <= rise(rx, rz, top) <= 2 * t.h:
+                return False
+        cx, cz = fuv                                            # the surface leans diagonally out
+        dx, dz = (ux + vx) / 2 ** 0.5, (uz + vz) / 2 ** 0.5
+        return nys[cx, cz, top] >= TILT and nxs[cx, cz, top] * dx + nzs[cx, cz, top] * dz >= TILT
+
+    for t in catalog.shaped("slope_cvx") + catalog.shaped("slope_ccv"):
+        for y0 in range(0, NY - t.h + 1):
+            top = y0 + t.h - 1
+            band = F[:, :, y0:top + 1].all(2)
+            low = band & ~up[:, :, top]                          # a step's tread, air above
+            for dir_ in range(4):
+                (ux, uz), (vx, vz) = DIRS[dir_], DIRS[(dir_ + 1) % 4]
+                if t.shape == "slope_cvx":                       # b rises, its 3 fronts are treads
+                    m = (band & up[:, :, top] & _nb(low, ux, uz) & _nb(low, vx, vz)
+                         & _nb(low, ux + vx, uz + vz))
+                    bs = np.argwhere(m)
+                else:                                            # c is a tread, u and v sides rise
+                    hi = band & up[:, :, top]
+                    m = low & _nb(hi, -ux, -uz) & _nb(hi, -vx, -vz) & _nb(hi, -ux - vx, -uz - vz)
+                    bs = [(cx - ux - vx, cz - uz - vz) for cx, cz in np.argwhere(m)]
+                for bx, bz in bs:
+                    bx, bz = int(bx), int(bz)
+                    if corner_ok(t, dir_, bx, bz, top):
+                        corner_try(t, dir_, bx, bz, y0)
 
     cands = []
     for dir_, (ux, uz) in enumerate(DIRS):

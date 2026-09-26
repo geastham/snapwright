@@ -1,7 +1,22 @@
 # Tasks
 
-Current milestone: **M7 Our two creations**, waiting for the briefs. M1-M6 merged (PRs #1,
+Current milestone: **M7 Our two creations** (branch `m7-creations`). M1-M6 merged (PRs #1,
 #3, #4, #5, #6, #7). Spec: SPEC.md §5 M7.
+
+## M7 checklist
+- [x] Creation A brief (from our brief prompt + 2 photos + generated elevations), corrected
+- [x] Creation A: Lakeside Sail Tower lakefront diorama, 3,115 parts, PASS, south IoU 0.92,
+      weak points all >= 2 studs; book, viewer, BOM, build video
+- [ ] Creation A physical test build; notes fed back into the packer
+- [ ] Creation B: brief (waiting), design, build, outputs
+- [x] Packer weaknesses found on the way, fixed at the cause: corner slopes (3045/3046),
+      exact-stack / thin-feature packing, repair loop keeps its best round, one-cell recolour
+      for colour-blocked groups, mesh rays at shared edges and touching caps
+- [x] Viewer embeds three.js (works offline / in previews)
+- [x] Build video (`sw.py video`, MP4 via ffmpeg, else WebP) with the maker's watermark
+- [x] Publishing polish: skills/ layout for `npx skills add`, README front page, logo and
+      social card (docs/brand), CI workflow, Claude.ai zip
+- [ ] Release (skill zip + books as assets) and v1.0 once both creations are built
 
 ## M6 (done, PR #7)
 

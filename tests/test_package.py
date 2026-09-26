@@ -11,7 +11,7 @@ SKIP = ("__pycache__", ".DS_Store", ".rebrickable", ".tmp")
 
 
 def _package(dest):
-    src = os.path.join(ROOT, "skill", "snapwright")
+    src = os.path.join(ROOT, "skills", "snapwright")
     path = os.path.join(dest, "snapwright.skill")
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
         for d, dirs, files in os.walk(src):
@@ -28,7 +28,7 @@ def test_packaged_skill_is_small_and_self_contained(tmp_path):
     assert os.path.getsize(pkg) < 2_000_000
     names = zipfile.ZipFile(pkg).namelist()
     assert "snapwright/SKILL.md" in names and "snapwright/assets/catalog.json" in names
-    lines = open(os.path.join(ROOT, "skill", "snapwright", "SKILL.md")).read().count("\n")
+    lines = open(os.path.join(ROOT, "skills", "snapwright", "SKILL.md")).read().count("\n")
     assert lines < 500
     zipfile.ZipFile(pkg).extractall(tmp_path / "installed")
     design = tmp_path / "design.py"

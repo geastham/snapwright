@@ -26,6 +26,10 @@ degree on 3-plate steps, 30 degree on 2-plate steps), 1-stud overhang lips for i
 slopes, and thin columns and curve corners for round parts. A slope goes only where the
 surface smoothed over ~1.5 studs actually leans (at least ~20 degrees from flat and from
 vertical) and the model rises behind it by at most two slope heights; boxes stay square.
+Where two slope runs meet at a step's outside corner (a stepped pyramid, a hip roof) a 2 x 2
+double-convex corner slope (3045) takes the corner; at an inside corner (where the arms of a
+stepped L or plus meet) a double-concave one (3046). Corners need a slope run carrying on
+along both arms, so the jagged steps of a small curve keep plain slopes.
 Shaped parts are counted in `stats.shaped` / `shaped_cells` and reported (`--no-shapes` off).
 
 Several seeds, each with a repair loop for parts left outside the main structure, least

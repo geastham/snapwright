@@ -14,7 +14,7 @@ from snapwright import compare as C
 from snapwright.catalog import hex_to_rgb
 from snapwright.pipeline import load_design
 
-SW = os.path.join(ROOT, "skill", "snapwright", "scripts", "sw.py")
+SW = os.path.join(ROOT, "skills", "snapwright", "scripts", "sw.py")
 
 
 def _photo(model, cat, path, az=20, el=10, bg=(200, 200, 200), noise=5, alpha=False, seed=0):

@@ -23,13 +23,22 @@ def bom(parts):
 SLOPE_MATRIX = {0: "0 0 -1 0 1 0 1 0 0", 1: "1 0 0 0 1 0 0 0 1",
                 2: "0 0 1 0 1 0 -1 0 0", 3: "-1 0 0 0 1 0 0 0 -1"}
 BOX_MATRIX = {0: "1 0 0 0 1 0 0 0 1", 1: "0 0 1 0 1 0 -1 0 0"}
+# corner slopes (3045, 3046) natively face LDraw +X and -Z, our +x and +z: dir 0 is the
+# identity, each further dir a quarter turn about Y
+CORNER_MATRIX = {0: "1 0 0 0 1 0 0 0 1", 1: "0 0 1 0 1 0 -1 0 0",
+                 2: "-1 0 0 0 1 0 0 0 -1", 3: "0 0 -1 0 1 0 1 0 0"}
 
 
 def ldraw_line(p, t, col) -> str:
     """One LDraw type-1 line for part dict p (catalog type t, LDraw colour col).
     Mapping (x, y, z) -> (20x, -8y, -20z): 1 stud = 20 LDU, 1 plate = 8 LDU, -Y up."""
     x, z, y, dx, dz, h = p["x"], p["z"], p["y"], p["dx"], p["dz"], p["h"]
-    if t.shape in ("slope", "slope_inv"):
+    if t.shape in ("slope_cvx", "slope_ccv"):     # origin: top centre of the high back corner
+        from .catalog import corner_back
+        m = CORNER_MATRIX[p["dir"]]
+        bx, bz = corner_back(p)
+        X, Z, Y = (bx + 0.5) * 20, -(bz + 0.5) * 20, -(y + h) * 8
+    elif t.shape in ("slope", "slope_inv"):
         d = p.get("dir", 0)
         m = SLOPE_MATRIX[d]
         if t.ldraw_origin == "bottom":             # 30 degree 2/3-height: bottom centre
@@ -136,6 +145,7 @@ def parse_ldraw(text, catalog):
     by_ldraw = {c["ldraw"]: k for k, c in catalog.colors.items()}
     by_file = {t.ldraw.lower(): t for t in catalog.parts}
     slope_dir = {v: k for k, v in SLOPE_MATRIX.items()}
+    corner_dir = {v: k for k, v in CORNER_MATRIX.items()}
     box_rot = {v: k for k, v in BOX_MATRIX.items()}
     out, step = [], 1
     for line in text.splitlines():
@@ -153,7 +163,14 @@ def parse_ldraw(text, catalog):
         m = " ".join(str(int(float(v))) for v in f[5:14])
         t = by_file[f[14].lower()]
         rec = {"part": t.id, "color": by_ldraw[col], "step": step, "h": t.h}
-        if t.shape == "snot":
+        if t.shape in ("slope_cvx", "slope_ccv"):
+            from .catalog import corner_cells
+            d = corner_dir[m]
+            x, z, _ = corner_cells(round(X / 20 - 0.5), round(-Z / 20 - 0.5), d)
+            dx = dz = 2
+            y = -Y / 8 - t.h
+            rec.update(rot=d, dir=d)
+        elif t.shape == "snot":
             d = slope_dir[m]
             dx, dz = (t.L, t.W) if d in (1, 3) else (t.W, t.L)
             x, z, y = X / 20 - dx / 2, -Z / 20 - dz / 2, -Y / 8 - t.h

@@ -7,7 +7,7 @@ import sys
 
 from conftest import ROOT
 
-SW = os.path.join(ROOT, "skill", "snapwright", "scripts", "sw.py")
+SW = os.path.join(ROOT, "skills", "snapwright", "scripts", "sw.py")
 DESIGN = os.path.join(ROOT, "examples", "lighthouse", "design.py")
 GOLDEN = {"parts": 1806, "steps": 188}      # M6 (verified colours, plate seams, repair); M2 1,761 / 185; M1 1,760 / 184; v0.1 1,744 / 182
 

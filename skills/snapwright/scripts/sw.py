@@ -7,6 +7,7 @@
   sw.py compare  design.py --ref PHOTO [--mask M] silhouette IoU from the best view + side by side
   sw.py viewer   model.json --out FILE          rebuild the 3D viewer from a model
   sw.py book     model.json --out FILE          rebuild the instruction PDF from a model
+  sw.py video    model.json --out build.mp4     the model building itself (MP4 via ffmpeg, else WebP)
   sw.py sync-catalog [--key KEY]                refresh part-colour availability from Rebrickable
                                                 (bulk downloads, or the API with a key; needs network)
 """
@@ -44,6 +45,14 @@ def main(argv=None):
     cp.add_argument("--mask", help="black/white image of the subject, if the background is busy")
     cp.add_argument("--out", default="out/compare")
     v = sub.add_parser("viewer"); v.add_argument("model"); v.add_argument("--out", required=True)
+    v.add_argument("--cdn", action="store_true", help="load three.js from a CDN instead of embedding it")
+    vd = sub.add_parser("video", help="the model building itself, as an MP4 (needs ffmpeg; else WebP)")
+    vd.add_argument("model"); vd.add_argument("--out", required=True)
+    vd.add_argument("--seconds", type=float, default=24, help="length of the build part (default 24)")
+    vd.add_argument("--fps", type=int, default=30)
+    vd.add_argument("--size", default="1080x1080", help="WxH, e.g. 1080x1080 or 1080x1350")
+    vd.add_argument("--view", type=int, default=0, choices=[0, 1, 2, 3], help="quarter view to build in")
+    vd.add_argument("--no-turn", action="store_true", help="don't show the other sides at the end")
     k = sub.add_parser("book"); k.add_argument("model"); k.add_argument("--out", required=True)
     k.add_argument("--page", choices=["letter", "a4"], default="letter")
     s = sub.add_parser("sync-catalog")
@@ -68,7 +77,12 @@ def main(argv=None):
     elif a.cmd == "compare":
         pipeline.compare(a.design, a.ref, a.out, mask=a.mask)
     elif a.cmd == "viewer":
-        pipeline.write_viewer(pipeline.load_model(a.model), a.out)
+        pipeline.write_viewer(pipeline.load_model(a.model), a.out, embed_three=not a.cdn)
+    elif a.cmd == "video":
+        from snapwright.video import build_video
+        w, h = (int(v) for v in a.size.lower().split("x"))
+        build_video(pipeline.load_model(a.model), a.out, Catalog(), seconds=a.seconds, fps=a.fps,
+                    size=(w, h), view=a.view, turn=not a.no_turn)
     elif a.cmd == "book":
         from snapwright.book import Book
         Book(pipeline.load_model(a.model), Catalog(), a.out, page=a.page).build()

@@ -43,7 +43,7 @@ class IndexedImage(PDFObject):
         self.height, self.width = idx.shape
         self.ncolors = len(pal) // 3
         # plain Flate: on palette indices a PNG predictor makes things bigger (tested: +20%)
-        self.stream = zlib.compress(idx.tobytes(), 6)
+        self.stream = zlib.compress(idx.tobytes(), 9)
         self.palette_hex = bytes(pal).hex().upper().encode()
 
     def format(self, document):

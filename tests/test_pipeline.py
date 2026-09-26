@@ -3,7 +3,7 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(ROOT, "skill", "snapwright", "scripts"))
+sys.path.insert(0, os.path.join(ROOT, "skills", "snapwright", "scripts"))
 
 from snapwright import pipeline  # noqa: E402
 from snapwright.validate import validate, occupancy, connection_graph  # noqa: E402

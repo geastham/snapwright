@@ -65,7 +65,13 @@ def test_viewer_controls_and_no_external_fetches(tmp_path, cat):
     for el in ('id="bPrev"', 'id="bNext"', 'id="bPlay"', 'id="bRec"', 'id="bExplode"', 'aria-label="Previous step"',
                "MediaRecorder", "ArrowRight"):
         assert el in html, el
-    urls = set(re.findall(r"https?://[^\s\"'`)]+", html))
+    # three.js is embedded (works offline and in sandboxed previews); the viewer's own code
+    # only names the CDN as a fallback for viewers written without it
+    for block in ("three-src", "orbit-src"):
+        body = re.search(rf'<script id="{block}" type="text/plain">(.*?)</script>', html, re.S).group(1)
+        assert len(body) > 10_000, block
+    own = re.sub(r'<script id="(three|orbit)-src" type="text/plain">.*?</script>', "", html, flags=re.S)
+    urls = set(re.findall(r"https?://[^\s\"'`)]+", own))
     assert urls and all(u.startswith("https://cdn.jsdelivr.net/npm/three@") for u in urls), urls
     node = shutil.which("node")
     if node:                                             # the viewer's module parses

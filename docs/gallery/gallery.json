@@ -1,5 +1,14 @@
 [
  {
+  "example": "creations/creation-a",
+  "slug": "lakeside-sail-tower",
+  "title": "Lakeside Sail Tower",
+  "parts": 3115,
+  "height_cm": 43.2,
+  "steps": 119,
+  "passed": true
+ },
+ {
   "example": "keep",
   "slug": "stone-keep",
   "title": "Stone Keep",

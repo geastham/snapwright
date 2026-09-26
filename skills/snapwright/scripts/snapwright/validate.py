@@ -245,7 +245,7 @@ def validate(parts, shape, catalog=None, with_necks=True) -> dict:
     shaped_cells = 0
     for p in parts:
         kinds[p["kind"]] = kinds.get(p["kind"], 0) + 1
-        if p.get("shape", "box") in ("slope", "slope_inv", "round"):
+        if p.get("shape", "box") in ("slope", "slope_inv", "slope_cvx", "slope_ccv", "round"):
             shaped[p["shape"]] = shaped.get(p["shape"], 0) + 1
             shaped_cells += p["dx"] * p["dz"] * p["h"]
 
@@ -342,6 +342,8 @@ def report_lines(stats) -> list[tuple[str, str]]:
     sh = st.get("shaped") or {}
     if sh:
         names = {"slope": ("slope", "slopes"), "slope_inv": ("inverted slope", "inverted slopes"),
+                 "slope_cvx": ("outside corner slope", "outside corner slopes"),
+                 "slope_ccv": ("inside corner slope", "inside corner slopes"),
                  "round": ("round part", "round parts")}
         bits = [f"{n} {names[k][0] if n == 1 else names[k][1]}" for k, n in sorted(sh.items()) if k in names]
         out.append(("note", "Surface shaping: " + ", ".join(bits) + " smooth the voxel steps"))

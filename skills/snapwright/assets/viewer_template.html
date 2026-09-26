@@ -56,10 +56,40 @@
   <span aria-live="polite">Step <b id="now">0</b> of <span id="tot">0</span> <span id="bag" style="color:var(--soft)"></span></span>
 </footer>
 <script id="model" type="application/json">__MODEL_JSON__</script>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+<div id="loadErr" role="alert" style="display:none;position:fixed;inset:auto 16px 16px 16px;z-index:9;padding:14px 16px;border-radius:10px;background:#fff3f0;color:#6b1d10;font:14px/1.45 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.15)"></div>
+<!-- three.js (MIT, (c) three.js authors) is embedded below so the viewer works offline and in
+     sandboxed previews; a viewer written without it loads the same version from a CDN. -->
+<script id="three-src" type="text/plain">__THREE_SRC__</script>
+<script id="orbit-src" type="text/plain">__ORBIT_SRC__</script>
+<script>
+(function () {
+  var CDN = 'https://cdn.jsdelivr.net/npm/three@0.170.0/';
+  function blob(src) { return URL.createObjectURL(new Blob([src], { type: 'text/javascript' })); }
+  window.__viewerFail = function (why) {
+    if (window.__VIEWER_OK__) return;
+    var el = document.getElementById('loadErr');
+    el.style.display = 'block';
+    el.textContent = 'The 3D view could not start (' + (why && why.message ? why.message : why) + '). ' +
+      'Open this file directly in a desktop browser (Chrome, Edge, Firefox or Safari) rather than a ' +
+      'preview pane; it needs WebGL. The parts list and checks above still work.';
+  };
+  window.addEventListener('unhandledrejection', function (e) { window.__viewerFail(e.reason); });
+  setTimeout(function () { if (!window.__VIEWER_OK__) window.__viewerFail('timed out'); }, 12000);
+  var three = document.getElementById('three-src').textContent;
+  var orbit = document.getElementById('orbit-src').textContent;
+  window.__loadThree = async function () {
+    var threeURL = three.length > 1000 ? blob(three) : CDN + 'build/three.module.js';
+    if (orbit.length < 1000) orbit = await (await fetch(CDN + 'examples/jsm/controls/OrbitControls.js')).text();
+    var orbitURL = blob(orbit.replace(/from\s*['"]three['"]/g, "from '" + threeURL + "'"));
+    return [await import(threeURL), (await import(orbitURL)).OrbitControls];
+  };
+})();
+</script>
 <script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+let THREE, OrbitControls;
+try {
+  [THREE, OrbitControls] = await window.__loadThree();
+} catch (e) { window.__viewerFail(e); throw e; }
 const M = JSON.parse(document.getElementById('model').textContent);
 const $ = id => document.getElementById(id);
 const S = 8, P = 3.2;             // mm per stud, per plate
@@ -74,7 +104,11 @@ $('disc').textContent = M.meta.disclaimer || '';
 
 // ---------- scene ----------
 const canvas = $('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+} catch (e) { window.__viewerFail(e); throw e; }
+window.__VIEWER_OK__ = true;
 renderer.setClearColor(0x000000, 0);   // transparent: the themed page background shows through
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 const scene = new THREE.Scene();
@@ -106,6 +140,40 @@ function slopeGeo(L, h, lip, inverted) {  // width 1 (x), length L*S along local
   const g = new THREE.ExtrudeGeometry(sh, { depth: 1, bevelEnabled: false });
   g.rotateY(-Math.PI / 2); g.translate(0.5, 0, 0); return g;
 }
+// corner slopes (2 x 2): local +z is the first face direction, local -x the second; the high
+// back corner is the cell at low z / high x. Height falls with the farther (outside corner, a
+// hip) or nearer (inside corner, a valley) distance from the two back edges.
+function cornerGeo(concave, h, lip) {
+  const hh = h * P, lp = lip * P, g = [-S, 0, S], pos = [];
+  const prof = u => (u <= 1 ? hh : hh - (hh - lp) * (u - 1));
+  const top = (x, z) => { const ua = (z + S) / S, ub = (S - x) / S;
+    return prof(concave ? Math.min(ua, ub) : Math.max(ua, ub)); };
+  const tri = (a, b, c, out) => {          // wind so the face points along `out`
+    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], w = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    const n = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]];
+    if (n[0] * out[0] + n[1] * out[1] + n[2] * out[2] < 0) [b, c] = [c, b];
+    pos.push(...a, ...b, ...c);
+  };
+  for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {   // top: split along the crease
+    const [x0, x1, z0, z1] = [g[i], g[i + 1], g[j], g[j + 1]];
+    const p00 = [x0, top(x0, z0), z0], p10 = [x1, top(x1, z0), z0], p11 = [x1, top(x1, z1), z1],
+          p01 = [x0, top(x0, z1), z1];
+    tri(p00, p01, p10, [0, 1, 0]); tri(p11, p10, p01, [0, 1, 0]);
+  }
+  const sides = [[[-S, -S], [S, -S], [0, -1]], [[S, -S], [S, S], [1, 0]], [[S, S], [-S, S], [0, 1]],
+                 [[-S, S], [-S, -S], [-1, 0]]];
+  for (const [[ax, az], [bx, bz], [ox, oz]] of sides) for (let k = 0; k < 2; k++) {
+    const t0 = k / 2, t1 = (k + 1) / 2;
+    const x0 = ax + (bx - ax) * t0, z0 = az + (bz - az) * t0, x1 = ax + (bx - ax) * t1, z1 = az + (bz - az) * t1;
+    const a = [x0, 0, z0], b = [x1, 0, z1], c = [x1, top(x1, z1), z1], d = [x0, top(x0, z0), z0];
+    tri(a, b, c, [ox, 0, oz]); tri(a, c, d, [ox, 0, oz]);
+  }
+  tri([-S, 0, -S], [S, 0, -S], [S, 0, S], [0, -1, 0]); tri([-S, 0, -S], [S, 0, S], [-S, 0, S], [0, -1, 0]);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.computeVertexNormals(); return geo;
+}
+const isCorner = p => p.shape === 'slope_cvx' || p.shape === 'slope_ccv';
 const groups = new Map();              // key -> {geo, idx: [part indices]}
 const keyOf = p => p.shape === 'round' ? `r${p.dx}:${p.h}` : p.shape ? `${p.shape}:${p.L}:${p.h}:${p.lip}` : 'box';
 for (const i of order) { const p = parts[i], k = keyOf(p);
@@ -114,6 +182,7 @@ for (const [k, g] of groups) {
   const p = g.p;
   g.geo = k === 'box' ? boxGeo : p.shape === 'round'
     ? new THREE.CylinderGeometry(p.dx / 2 * S * .98, p.dx / 2 * S * .98, p.h * P - 0.12, 24).translate(0, p.h * P / 2, 0)
+    : isCorner(p) ? cornerGeo(p.shape === 'slope_ccv', p.h, p.lip)
     : slopeGeo(p.L, p.h, p.lip, p.shape === 'slope_inv');
   g.mesh = new THREE.InstancedMesh(g.geo, mat, g.idx.length);
   g.idx.forEach((i, n) => g.mesh.setColorAt(n, new THREE.Color(M.colors[parts[i].color].hex)));
@@ -169,7 +238,8 @@ function place(t) {                 // t = build time in steps (fractional)
       } else {
         v.set((p.x + p.dx / 2) * S, p.y * P + drop, (p.z + p.dz / 2) * S);
         const width = p.shape === 'round' ? 1 : (p.dir % 2 ? p.dx : p.dz);
-        sc.set(p.shape === 'round' ? 1 : width * S - gap, 1, 1);
+        if (isCorner(p)) sc.set(1 - gap / (2 * S), 1, 1 - gap / (2 * S));
+        else sc.set(p.shape === 'round' ? 1 : width * S - gap, 1, 1);
         q.setFromAxisAngle(up, p.shape === 'round' ? 0 : ROT[p.dir]);
       }
       g.mesh.setMatrixAt(n++, m4.compose(v, q, sc));

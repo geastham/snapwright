@@ -27,7 +27,7 @@ reference (photo/sketch/text)
   → instructions.pdf                            book.py
 ```
 Canonical artifact: `model.json` (schema `snapwright.model/0.2`; 0.1 still read; see
-`skill/snapwright/references/geometry-and-checks.md`). Every downstream output must be
+`skills/snapwright/references/geometry-and-checks.md`). Every downstream output must be
 regenerable from `model.json` alone.
 
 ## 4. Status of the v0.1 scaffold (what exists and runs)
@@ -96,7 +96,7 @@ regenerable from `model.json` alone.
 - Accessibility: colour names alongside swatches, never colour alone.
 
 ### M6 Publishable skill
-- `skill/snapwright` is self-contained, < 2 MB, installs via `.skill` package.
+- `skills/snapwright` is self-contained, < 2 MB, installs via `.skill` package.
 - `evals/evals.json` (≥ 6 prompts incl. mosaic, kids model, photo sculpture, IP decline) run
   with skill-creator; description tuned for triggering.
 - README with gallery (cover PNGs + viewer links), NOTICE, LICENSE, CONTRIBUTING.
@@ -129,6 +129,7 @@ regenerable from `model.json` alone.
 8. (M1: export/re-import round-trip test; LeoCAD screenshot check still in M2) LDraw rotation/origin conventions need a round-trip test in LeoCAD.
 9. (Done in M5) Viewer has no step-by-step mode or new-part highlight yet.
 10. (Done in M4) No CLI `compare` / reference scoring yet (M4).
-11. (Found by the M6 evals) Convex and concave corners of stepped cones (rocket noses, tower
+11. (Done in M7: 3045 / 3046 corner slopes where slope runs meet, checked against the LDraw
+    library; small curves' jags keep plain slopes) Convex and concave corners of stepped cones (rocket noses, tower
     roofs) show open triangles where slopes facing different ways meet; needs corner slopes
     (double convex / double concave). Planned with the M7 packer work.

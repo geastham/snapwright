@@ -289,7 +289,7 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
 def _viewer_part(p, cat):
     """The fields the viewer needs; shaped parts add shape, dir, catalog L / lip, studs."""
     q = {k: p[k] for k in ("x", "y", "z", "dx", "dz", "h", "color", "studs", "step")}
-    if p.get("shape", "box") in ("slope", "slope_inv", "round"):     # side-stud bricks draw as boxes
+    if p.get("shape", "box") in ("slope", "slope_inv", "slope_cvx", "slope_ccv", "round"):     # side-stud bricks draw as boxes
         t = cat.by_id.get(p["part"]) if cat else None
         q.update(shape=p["shape"], dir=p.get("dir", 0), L=t.L if t else max(p["dx"], p["dz"]),
                  lip=t.lip if t else 0.5)
@@ -413,7 +413,9 @@ def _viewer_panels(model):
     return out
 
 
-def write_viewer(model, path, catalog=None):
+def write_viewer(model, path, catalog=None, embed_three=True):
+    """The self-contained 3D viewer. embed_three: include three.js (~720 KB, MIT; from
+    assets/vendor) so it works offline and in sandboxed previews; else load it from a CDN."""
     cat = catalog or Catalog()
     with open(os.path.join(ASSETS, "viewer_template.html")) as f:
         html = f.read()
@@ -425,7 +427,14 @@ def write_viewer(model, path, catalog=None):
     slim["panels"] = _viewer_panels(model)
     slim.pop("subassemblies", None)
     data = json.dumps(slim, separators=(",", ":")).replace("</", "<\\/")
-    html = html.replace("__MODEL_JSON__", data).replace("__TITLE__", model["meta"]["title"])
+    three = orbit = ""
+    if embed_three:
+        vendor = os.path.join(ASSETS, "vendor")
+        three = open(os.path.join(vendor, "three.module.min.js"), encoding="utf-8").read()
+        orbit = open(os.path.join(vendor, "OrbitControls.js"), encoding="utf-8").read()
+    # the model JSON goes in last: nothing inside it is treated as a placeholder
+    html = (html.replace("__THREE_SRC__", three).replace("__ORBIT_SRC__", orbit)
+            .replace("__TITLE__", model["meta"]["title"]).replace("__MODEL_JSON__", data))
     _write(os.path.dirname(path), os.path.basename(path), html)
 
 

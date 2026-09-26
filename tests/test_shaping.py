@@ -80,3 +80,44 @@ model.box(3, 3, 2, 5, 5, 40, "yellow")
              and p["x"] < 5 and 3 < p["x"] + p["dx"] and p["z"] < 5 and 3 < p["z"] + p["dz"]]
     assert under and all(p["color"] == "light_bluish_gray" for p in under), \
         [(p["part"], p["color"]) for p in under]
+
+
+ZIGGURAT = '''
+model = Model(24, 24, 18)
+for k in range(6):
+    model.box(2 + k, 2 + k, 3 * k, 22 - k, 22 - k, 3 * k + 3, "red")
+'''
+
+PLUS = '''
+model = Model(26, 26, 15)
+for k in range(5):     # a stepped plus: each arm narrows level by level, inside corners where they meet
+    model.box(1 + k, 8 + k, 3 * k, 25 - k, 18 - k, 3 * k + 3, "red")
+    model.box(8 + k, 1 + k, 3 * k, 18 - k, 25 - k, 3 * k + 3, "red")
+'''
+
+
+def test_corner_slopes_where_slope_runs_meet():
+    """Outside corners of a stepped pyramid and inside corners of a stepped plus get 2 x 2 corner
+    slopes, so the runs meet without open triangles; a stepped circle's jags don't."""
+    for src, shape, want in ((ZIGGURAT, "slope_cvx", 16), (PLUS, "slope_ccv", 4)):
+        m = model_from_src(src)
+        model, built = solve(m, seeds=1)
+        assert model["stats"]["passed"], model["stats"]["failures"]
+        check_model(model, m.V, built, m.palette)
+        n = _shapes(model)[shape]
+        assert n >= want, (shape, _shapes(model))
+    m = model_from_src('''
+model = Model(15, 15, 40)
+model.cone(7.5, 7.5, 5.5, 1.0, 0, 30, "red")
+''')
+    model, _ = solve(m, seeds=1)
+    sh = _shapes(model)
+    assert sh["slope_ccv"] == 0 and sh["slope"] > 10, sh
+
+
+def test_corner_slopes_round_trip_through_ldraw(cat):
+    from snapwright.exporters import parse_ldraw, to_ldraw
+    model, _ = solve(model_from_src(ZIGGURAT), seeds=1)
+    back = parse_ldraw(to_ldraw(model, cat), cat)
+    key = lambda p: (p["part"], p["x"], p["z"], p["y"], p["dx"], p["dz"], p.get("dir", -1) if p["part"] in ("3045", "3046") else 0)   # noqa: E731
+    assert sorted(map(key, back)) == sorted(map(key, model["parts"]))
