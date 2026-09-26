@@ -4,6 +4,7 @@
   sw.py preview  design.py --out DIR            fast voxel renders (4 views) for design iteration
   sw.py build    design.py --out DIR [options]  full pipeline: parts, checks, steps, exports, viewer, book
                                                 (--profile prints stage timings + a cProfile report)
+  sw.py compare  design.py --ref PHOTO [--mask M] silhouette IoU from the best view + side by side
   sw.py viewer   model.json --out FILE          rebuild the 3D viewer from a model
   sw.py book     model.json --out FILE          rebuild the instruction PDF from a model
   sw.py sync-catalog --key REBRICKABLE_KEY      refresh part-colour availability (needs network)
@@ -38,6 +39,9 @@ def main(argv=None):
                    help="only bricks, plates and tiles: no slopes or round parts")
     b.add_argument("--profile", action="store_true",
                    help="print stage timings and write a cProfile report to OUT/profile.txt")
+    cp = sub.add_parser("compare"); cp.add_argument("design"); cp.add_argument("--ref", required=True)
+    cp.add_argument("--mask", help="black/white image of the subject, if the background is busy")
+    cp.add_argument("--out", default="out/compare")
     v = sub.add_parser("viewer"); v.add_argument("model"); v.add_argument("--out", required=True)
     k = sub.add_parser("book"); k.add_argument("model"); k.add_argument("--out", required=True)
     k.add_argument("--page", choices=["letter", "a4"], default="letter")
@@ -56,6 +60,8 @@ def main(argv=None):
         else:
             m = pipeline.build(a.design, a.out, **kw)
         sys.exit(0 if m["stats"]["passed"] else 2)
+    elif a.cmd == "compare":
+        pipeline.compare(a.design, a.ref, a.out, mask=a.mask)
     elif a.cmd == "viewer":
         pipeline.write_viewer(pipeline.load_model(a.model), a.out)
     elif a.cmd == "book":

@@ -1,9 +1,28 @@
 # Tasks
 
-Current milestone: **M3 Sideways subassemblies (SNOT)** (branch `m3-snot`). M1 and M2 merged
-(PRs #1, #3). Spec: SPEC.md §5 M3.
+Current milestone: **M4 Reference-to-design quality loop** (branch `m4-likeness`). M1-M3 merged
+(PRs #1, #3, #4). Spec: SPEC.md §5 M4.
 
-## M3 checklist
+## M4 checklist
+- [x] Reference silhouette: alpha channel, `--mask`, or border-colour background model with a
+      busy-background warning; morphology cleanup, largest component, holes filled
+- [x] Model silhouette + colour render from any azimuth/elevation (orthographic, z-buffered,
+      numpy), normalised to the reference's frame
+- [x] Best-view search (coarse grid + refine), silhouette IoU
+- [x] Actionable hints: height bands too wide/narrow, aspect ratio, colour agreement and the top
+      colour confusion
+- [x] `sw.py compare design.py --ref photo.jpg [--mask] [--out]`: side-by-side PNG (reference,
+      model at best view, overlap) + compare.json
+- [x] Thin-feature warning at preview/compare (1-stud colour details that may vanish)
+- [x] `Model.from_mesh(path, height_cm=...)`: OBJ (+MTL colours), STL (ascii/binary), GLB
+      (materials, node transforms); numpy-only voxelisation (surface sampling + fill)
+- [x] Tests with generated references and meshes (no third-party files); SKILL.md loop
+      guidance (IoU >= 0.8, features >= 2 studs); docs (references/likeness.md)
+- [ ] PR; merge
+
+## M3 (done, PR #4)
+
+### M3 checklist
 - [x] LeoCAD check of the M2 export (docs/ldraw-check.md)
 - [x] Catalog: side-stud bricks 87087, 11211, 30414 with side-stud metadata (from LDraw)
 - [x] DSL: `model.panel(...)` returns a panel sub-model (own grid, own DSL) on a face of the
