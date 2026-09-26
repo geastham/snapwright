@@ -20,7 +20,7 @@ playback, step by step, exploded panels); each example's design file is in `exam
 | | | | |
 |:-:|:-:|:-:|:-:|
 | [<img src="docs/gallery/harbour-lighthouse.png" height="220" alt="Harbour Lighthouse">](https://geastham.github.io/snapwright/gallery/harbour-lighthouse.html) | [<img src="docs/gallery/signal-robot.png" height="220" alt="Signal Robot">](https://geastham.github.io/snapwright/gallery/signal-robot.html) | [<img src="docs/gallery/little-rocket.png" height="220" alt="Little Rocket">](https://geastham.github.io/snapwright/gallery/little-rocket.html) | [<img src="docs/gallery/stone-keep.png" height="220" alt="Stone Keep">](https://geastham.github.io/snapwright/gallery/stone-keep.html) |
-| **Harbour Lighthouse**<br>1,806 parts · 32.6 cm<br>slopes and rounds on the tapers | **Signal Robot**<br>493 parts · 25 cm<br>face and chest built sideways | **Little Rocket**<br>503 parts · 25 cm<br>from an STL; thin fins kept | **Stone Keep**<br>5,193 parts · 45 cm<br>hollow with bracing; `make bench` |
+| **Harbour Lighthouse**<br>1,808 parts · 32.6 cm<br>slopes and rounds on the tapers | **Signal Robot**<br>492 parts · 25 cm<br>face and chest built sideways | **Little Rocket**<br>485 parts · 24 cm<br>from an STL; thin fins kept | **Stone Keep**<br>5,210 parts · 45 cm<br>hollow with bracing; `make bench` |
 
 The lighthouse builds with its book in about 20 s on a laptop; the keep in under 2 minutes.
 Regenerate the gallery with `python tools/gallery.py`.
