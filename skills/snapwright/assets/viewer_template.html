@@ -47,7 +47,8 @@
 <aside class="ui card" id="checks"><h2>Checked in software</h2><ul id="checkList"></ul>
   <div class="note" id="disc"></div></aside>
 <aside class="ui card" id="bom"><h2>Parts list</h2><div id="bomList"></div>
-  <div style="display:flex;gap:6px;margin-top:10px"><button id="dlXml">BrickLink XML</button><button id="dlCsv">CSV</button></div></aside>
+  <div style="display:flex;gap:6px;margin-top:10px"><button id="dlXml">BrickLink XML</button><button id="dlCsv">CSV</button></div>
+  <p style="font-size:12px;color:var(--soft);margin:8px 0 0">To order: on BrickLink go to Want &rarr; Upload, add the XML as a new wanted list, then <i>Buy All</i> to find shops that have everything. Click a part to see it on BrickLink.</p></aside>
 <footer class="ui card">
   <button id="bPrev" aria-label="Previous step" title="Previous step (left arrow)">&#9664;</button>
   <button id="bPlay" aria-label="Play or pause the build" title="Play / pause (space)">Pause</button>
@@ -330,17 +331,19 @@ renderer.setAnimationLoop(now => {
 const st = M.stats;
 $('checkList').innerHTML = M.report.map(r =>
   `<li class="${r.kind}">${r.text.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</li>`).join('');
+// a part in one colour on BrickLink's catalog (prices, shops that have it)
+const blUrl = (pid, c) => `https://www.bricklink.com/v2/catalog/catalogitem.page?P=${encodeURIComponent(pid)}&idColor=${M.colors[c].bricklink}`;
 const byColor = {};
 for (const [pid, c, qn] of M.bom) (byColor[c] ||= []).push([pid, qn]);
 $('bomList').innerHTML = Object.entries(byColor).map(([c, rows]) =>
   `<div style="margin:8px 0 2px;font-weight:700;display:flex;gap:6px;align-items:center"><span class="sw" role="img" aria-label="${M.colors[c].name}" style="background:${M.colors[c].hex}"></span>${M.colors[c].name}</div>` +
-  rows.map(([pid, qn]) => `<div class="row"><span></span><span>${M.catalog_names[pid]} <span style="color:var(--soft)">#${pid}</span></span><b>${qn}</b></div>`).join('')).join('');
+  rows.map(([pid, qn]) => `<div class="row"><span></span><span><a href="${blUrl(pid, c)}" target="_blank" rel="noopener" title="See it on BrickLink" style="color:inherit">${M.catalog_names[pid]}</a> <span style="color:var(--soft)">#${pid}</span></span><b>${qn}</b></div>`).join('')).join('');
 const dl = (name, data, type) => { const a = document.createElement('a');
   a.href = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type })); a.download = name; a.click(); };
 $('dlXml').onclick = () => dl(`${M.meta.slug}-bricklink.xml`, '<INVENTORY>\n' + M.bom.map(([pid, c, qn]) =>
   `  <ITEM><ITEMTYPE>P</ITEMTYPE><ITEMID>${pid}</ITEMID><COLOR>${M.colors[c].bricklink}</COLOR><MINQTY>${qn}</MINQTY></ITEM>`).join('\n') + '\n</INVENTORY>\n', 'application/xml');
-$('dlCsv').onclick = () => dl(`${M.meta.slug}-parts.csv`, 'Part ID,Part,Colour,Qty\n' + M.bom.map(([pid, c, qn]) =>
-  `${pid},"${M.catalog_names[pid]}",${M.colors[c].name},${qn}`).join('\n') + '\n', 'text/csv');
+$('dlCsv').onclick = () => dl(`${M.meta.slug}-parts.csv`, 'Part ID,Part,Colour,Qty,BrickLink link\n' + M.bom.map(([pid, c, qn]) =>
+  `${pid},"${M.catalog_names[pid]}",${M.colors[c].name},${qn},${blUrl(pid, c)}`).join('\n') + '\n', 'text/csv');
 const tog = (b, el) => { $(el).classList.toggle('open'); $(b).classList.toggle('on'); };
 $('bChecks').onclick = () => tog('bChecks', 'checks');
 $('bParts').onclick = () => tog('bParts', 'bom');

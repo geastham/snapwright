@@ -72,7 +72,9 @@ def test_viewer_controls_and_no_external_fetches(tmp_path, cat):
         assert len(body) > 10_000, block
     own = re.sub(r'<script id="(three|orbit)-src" type="text/plain">.*?</script>', "", html, flags=re.S)
     urls = set(re.findall(r"https?://[^\s\"'`)]+", own))
-    assert urls and all(u.startswith("https://cdn.jsdelivr.net/npm/three@") for u in urls), urls
+    # links the user can click (BrickLink's catalog) are fine; nothing else is ever loaded
+    assert urls and all(u.startswith(("https://cdn.jsdelivr.net/npm/three@",
+                                      "https://www.bricklink.com/v2/catalog/")) for u in urls), urls
     node = shutil.which("node")
     if node:                                             # the viewer's module parses
         js = re.search(r'<script type="module">(.*?)</script>', html, re.S).group(1)

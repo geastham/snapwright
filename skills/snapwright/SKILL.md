@@ -11,6 +11,21 @@ The pipeline is deterministic Python in `scripts/`. Your job is the part code ca
 the reference, choose scale and palette, write the design file, look at previews, fix what
 looks wrong, and interpret the checks.
 
+## Guided creations (the wizard)
+
+When the user starts a new creation from pictures, asks "how do I start?", or wants the
+likeness to matter, walk them through `references/wizard.md`, stage by stage:
+1. three kickoff questions;
+2. `sw.py new` for a project folder;
+3. `sw.py refs` to check the reference images and write prompts for any missing views;
+4. the brief;
+5. block-out and likeness;
+6. build;
+7. hand-over.
+
+Show something at every stage and ask at most one question. For quick one-line requests,
+use sensible defaults and go straight to the design.
+
 ## 0. Before designing: subject and IP
 
 Build original subjects, the user's own creations, generic things (animals, buildings,
@@ -105,7 +120,10 @@ Builds are deterministic: the same design file and seeds give the same model. Ad
 - on request, a build video (the model assembling itself, then its other sides):
   `sw.py video out/model.json --out out/build.mp4 [--size 1080x1350] [--seconds 24]`; MP4 needs
   ffmpeg (else an animated WebP); ~0.3 s per frame for a 3,000-part model
-- `<slug>-bricklink.xml`, `<slug>-rebrickable.csv`, `<slug>-parts.csv`
+- `<slug>-bricklink.xml`: the order list. On BrickLink: Want -> Upload, then *Buy All*
+  to find shops that have everything.
+- `<slug>-rebrickable.csv`: import on Rebrickable as a part list.
+- `<slug>-parts.csv`: a readable list with a BrickLink link per part and colour.
 - `model.json`: canonical model (schema in `references/geometry-and-checks.md`)
 
 Share the PDF and the viewer first. Give the headline numbers (parts, height, steps, lots),
@@ -144,9 +162,10 @@ reflection, a horizon line) blur into mud: `paint` them back over the mosaic. Or
 
 ## Files
 
-- `scripts/sw.py`: CLI (preview, compare, build, viewer, book, sync-catalog)
+- `scripts/sw.py`: CLI (new, refs, preview, compare, build, viewer, book, video, sync-catalog)
 - `scripts/snapwright/`: dsl, brickify, validate, steps, render, book, exporters, pipeline
 - `assets/catalog.json`: parts and colours; `assets/viewer_template.html`
+- `references/wizard.md`: the guided creation flow, stage by stage, with checkpoints
 - `references/design-dsl.md`: every DSL call with examples. Read before writing a design.
 - `references/likeness.md`: compare, reading its hints, masks, meshes
 - `references/geometry-and-checks.md`: units, connection rules, repairs, each check and its fix,

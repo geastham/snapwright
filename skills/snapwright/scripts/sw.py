@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Snapwright CLI.
 
+  sw.py new      "Title" [--dir .]              start a creation folder (brief, reference/, design)
+  sw.py refs     PROJECT                        check reference images, masks, colours, missing views
   sw.py preview  design.py --out DIR            fast voxel renders (4 views) for design iteration
   sw.py build    design.py --out DIR [options]  full pipeline: parts, checks, steps, exports, viewer, book
                                                 (--profile prints stage timings + a cProfile report)
@@ -25,6 +27,11 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="sw.py", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
+    nw = sub.add_parser("new", help="start a creation folder: brief.md, reference/, design.py")
+    nw.add_argument("title"); nw.add_argument("--dir", default=".")
+    nw.add_argument("--subject", default="", help="one or two sentences: what it is")
+    rf = sub.add_parser("refs", help="check a creation's reference images; prompts for missing views")
+    rf.add_argument("project"); rf.add_argument("--subject", help="what the subject is (else from brief.md)")
     p = sub.add_parser("preview"); p.add_argument("design"); p.add_argument("--out", required=True)
     p.add_argument("--size", type=int, default=700)
     b = sub.add_parser("build"); b.add_argument("design"); b.add_argument("--out", required=True)
@@ -62,6 +69,16 @@ def main(argv=None):
     s.add_argument("--since", type=int, default=2005, help="count colours seen in sets from this year on")
     a = ap.parse_args(argv)
 
+    if a.cmd == "new":
+        from snapwright.wizard import new_project
+        path = new_project(a.title, a.dir, a.subject)
+        print(f"created {path}/: brief.md, reference/ (put photos here), design.py")
+        print(f"next: add reference images, then  sw.py refs {path}")
+        return
+    if a.cmd == "refs":
+        from snapwright.wizard import inspect_refs, report_text
+        print("\n".join(report_text(inspect_refs(a.project, a.subject))))
+        return
     if a.cmd == "preview":
         for path in pipeline.preview(a.design, a.out, size=a.size):
             print(path)

@@ -43,8 +43,19 @@ version of your dog, your house, a rocket you modelled, a sunset photo, and it:
 <p align="center"><b>An interactive 3D viewer</b> (one HTML file, works offline): build playback, step by step,<br>
 exploded panels, record to video, and the honest list of what the software checked.</p>
 
-Plus **LDraw** files for Studio / LeoCAD / Mecabricks, a **BrickLink** wanted list, a
-**Rebrickable** CSV and, if you ask, a **build video** (MP4) of the model assembling itself.
+### What you get
+
+Every build drops these into an `out/` folder:
+
+| file | what it is |
+|---|---|
+| `<name>-instructions.pdf` | **the instruction book**, ready to print |
+| `<name>-viewer.html` | **the 3D viewer**: one file, opens in any browser, offline too |
+| `<name>-bricklink.xml` | **the order list**: upload it to BrickLink and buy everything in a few clicks ([how](docs/ordering.md)) |
+| `<name>-parts.csv` | a readable parts list with a **BrickLink link for every part** |
+| `<name>-rebrickable.csv` | the parts list for Rebrickable (what do I already own?) |
+| `<name>.ldr` | the model for Studio, LeoCAD or Mecabricks |
+| `build.mp4` | on request: **a build video** of the model assembling itself, ready to post |
 
 ## Gallery
 
@@ -56,6 +67,34 @@ Every one of these passes the checks. Click a picture to open its 3D viewer.
 | **Lakeside Sail Tower**<br>3,115 parts · 43 cm<br>a lakefront diorama, from two photos | **Harbour Lighthouse**<br>1,808 parts · 33 cm<br>slopes and rounds on the tapers | **Signal Robot**<br>492 parts · 25 cm<br>face and chest built sideways |
 | [<img src="docs/gallery/little-rocket.png" height="230" alt="Little Rocket">](https://geastham.github.io/snapwright/gallery/little-rocket.html) | [<img src="docs/gallery/stone-keep.png" height="230" alt="Stone Keep">](https://geastham.github.io/snapwright/gallery/stone-keep.html) | |
 | **Little Rocket**<br>485 parts · 24 cm<br>straight from an STL file | **Stone Keep**<br>5,210 parts · 45 cm<br>hollow walls with bracing | |
+
+## Make your own creation
+
+Bring an idea and a few pictures; the skill walks you through the rest, checking in with you
+at each step:
+
+1. **Three quick questions:** what is it, how big, who's building.
+2. **References:** it checks your pictures, suggests brick colours, and gives you
+   copy-paste prompts to generate any views it still needs.
+3. **A short brief:** size, colours, and the features that make it *yours*.
+4. **Block-out and likeness:** it designs the model and scores how closely it matches your
+   picture, and you steer.
+5. **Build and check:** real parts, checked in software, every repair listed.
+6. **Everything you need:** book, viewer, parts lists and video.
+
+| | | |
+|:-:|:-:|:-:|
+| <img src="docs/wizard/1-references.png" height="200" alt="Checking the references"> | <img src="docs/wizard/3-likeness.png" height="200" alt="Scoring the likeness"> | <img src="docs/wizard/4-built.png" height="200" alt="The built model"> |
+| checks the references | scores the likeness | builds it for real |
+
+**[See the whole walkthrough →](docs/wizard.md)** (recorded on Biscuit the dog)
+
+## Getting the bricks
+
+Upload `<name>-bricklink.xml` on BrickLink (*Want → Upload*), then click **Buy All**: it
+finds the shops that have everything. Every part is listed only in colours it's actually
+made in. There's also a Rebrickable list, and a link per part in the parts CSV and the viewer.
+**[Step by step →](docs/ordering.md)**
 
 ## Install (30 seconds)
 
@@ -71,7 +110,8 @@ and file creation* (Settings → Capabilities), then upload the zip under *Skill
 ([how](https://support.claude.com/en/articles/12512180-use-skills-in-claude)).
 
 It needs Python with numpy, scipy, pillow and reportlab (the Claude sandbox has them). No
-GPU, no network (except refreshing the parts catalog), about 300 KB.
+GPU, no network (except refreshing the parts catalog), about 300 KB. Then just ask:
+*"I'd like to make a brick version of … — walk me through it."*
 
 ## Things to ask it
 
