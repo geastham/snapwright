@@ -1,9 +1,11 @@
 # Tasks
 
-Current milestone: **M6 Publishable skill** (branch `m6-publish`). M1-M5 merged (PRs #1,
-#3, #4, #5, #6). Spec: SPEC.md §5 M6.
+Current milestone: **M7 Our two creations**, waiting for the briefs. M1-M6 merged (PRs #1,
+#3, #4, #5, #6, #7). Spec: SPEC.md §5 M7.
 
-## M6 checklist
+## M6 (done, PR #7)
+
+### M6 checklist
 - [x] Eval set: 7 prompts with named assertions (photo sculpture, mosaic, kids model, IP
       decline, tipping fix, LDraw export, STL import); inputs generated here (evals/files)
 - [x] skill-creator loop, iteration 1: 7 prompts with and without the skill, graded by
@@ -20,7 +22,7 @@ Current milestone: **M6 Publishable skill** (branch `m6-publish`). M1-M5 merged 
 - [x] CONTRIBUTING.md
 - [x] README gallery: cover PNGs + viewer links (docs/gallery, GitHub Pages)
 - [x] `make package` -> dist/snapwright.skill, 113 KB; tests/test_package.py builds from the unzipped copy
-- [ ] PR, merge
+- [x] PR #7, merged; GitHub Pages serves docs/ (gallery viewers)
 
 ## M5 (done, PR #6)
 
