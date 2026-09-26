@@ -152,5 +152,9 @@ def test_thin_fins_stay_attached(tmp_path):
     for a in (0, 120, 240):
         near = np.minimum(abs(ang - a), 360 - abs(ang - a)) < 20
         assert (far & near).any(), f"no fin at {a} degrees"
+    # the nose (a closed cone sitting cap-on-cap on the body) narrows steadily: rays through
+    # shared edges or the touching caps must not flip inside and outside
+    counts = [int((m.V[:, :, y] > 0).sum()) for y in range(int(160 * 250 / 210 / 3.2), m.NY)]
+    assert all(b <= a for a, b in zip(counts, counts[1:])), counts
     model, built = solve(m, seeds=1)
     assert model["stats"]["passed"], model["stats"]["failures"]

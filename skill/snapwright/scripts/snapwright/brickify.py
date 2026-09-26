@@ -279,7 +279,10 @@ class Packer:
             elif len(ids) == 1:
                 p = self.parts[ids[0]]
                 if p["x"] == x and p["z"] == z and p["dx"] == dx and p["dz"] == dz:
-                    score -= 3.0      # exact stack = seam straight through
+                    # exact stack: seams straight through on every side, it bonds nothing new.
+                    # Scaled with area so it loses to any real alternative (thin features such
+                    # as fins otherwise stack into columns that never join)
+                    score -= 3.0 + dx * dz
             # long seams matter in stacked plates (flat bases, floors); brick walls already
             # bond through the bridging bonus
             if h == 1 and all(self.parts[i]["h"] == 1 for i in ids):
@@ -722,12 +725,35 @@ def _repair(V, parts, shape, no_brick, no_tile, priority, recolor, trim=False, k
                             V[x, z, y] = 0
                             changed -= 1  # negative = trimmed, tracked separately
             continue
-    if recolor:
-        changed += _recolour_contacts(V, bad, occ, d, main, shape)
+    # a group that touches the main structure only sideways across visible cells of another
+    # colour can't be joined by any re-pack: recolour its one contact cell straight away
+    changed += _recolour_contacts(V, bad, occ, d, main, shape, only_blocked=not recolor)
     return changed, zone
 
 
-def _recolour_contacts(V, bad, occ, d, main, shape):
+def _colour_blocked(V, vis, ps, occ, d, main, shape):
+    """Does this stranded group touch the main structure only sideways, across visible cells
+    of different colours? (Then no part can span the contact, and no re-pack helps.)"""
+    NX, NZ, NY = shape
+    touch = False
+    for p in ps:
+        for x in range(p["x"], p["x"] + p["dx"]):
+            for z in range(p["z"], p["z"] + p["dz"]):
+                for y in range(p["y"], p["y"] + p["h"]):
+                    for a, b, c in ((x + 1, z, y), (x - 1, z, y), (x, z + 1, y), (x, z - 1, y),
+                                    (x, z, y + 1), (x, z, y - 1)):
+                        if not (0 <= a < NX and 0 <= b < NZ and 0 <= c < NY) or occ[a, b, c] < 0 \
+                                or d.find(int(occ[a, b, c])) != main:
+                            continue
+                        if c != y:
+                            return False           # stacked on / under the main structure
+                        touch = True
+                        if V[a, b, c] == V[x, z, y] or not vis[a, b, c] or not vis[x, z, y]:
+                            return False
+    return touch
+
+
+def _recolour_contacts(V, bad, occ, d, main, shape, only_blocked=False):
     """Recolour step: per stranded group, ONE cell where it touches the main structure takes
     the main colour there (the middle-height contact, preferring cells with more main
     neighbours). One plate across the colour boundary is enough to join the group: its
@@ -738,7 +764,10 @@ def _recolour_contacts(V, bad, occ, d, main, shape):
     for p in bad:
         groups.setdefault(d.find(p["id"]), []).append(p)
     changed = 0
+    vis = exterior_visible(V) if only_blocked else None
     for ps in groups.values():
+        if only_blocked and not _colour_blocked(V, vis, ps, occ, d, main, shape):
+            continue
         contacts = []
         for p in ps:
             for x in range(p["x"], p["x"] + p["dx"]):
@@ -806,14 +835,17 @@ def brickify(V, palette, catalog, seeds=8, finish="tiles", use_bricks=True, max_
         # 3 + trim. A stage runs while it makes progress (fewer stranded parts: joining one
         # group along a thin staircase can strand the next), and gives way after 2 idle rounds.
         stage, least, idle, live = 0, None, 0, 1
+        kept = None                     # the best round so far: repairs never make it worse
         for rnd in range(repair_rounds + 1):
             parts = Packer(W, palette, catalog, seed=s, finish=finish, use_bricks=use_bricks,
                            max_len=max_len, no_brick=no_brick, no_tile=no_tile,
                            priority=priority, shapes=shapes, anchors=anchors, live_from=live).run()
             stats = validate(parts, W.shape, catalog, with_necks=False)
+            score = (stats["structures"], stats["floating"])
+            if kept is None or score < kept[0]:
+                kept = (score, parts, stats, W.copy(), no_tile.copy())
             if (stats["floating"] == 0 and stats["structures"] == 1) or rnd == repair_rounds:
                 break
-            score = (stats["structures"], stats["floating"])
             if least is None or score < least:
                 least, idle = score, 0
             else:
@@ -825,6 +857,7 @@ def brickify(V, palette, catalog, seeds=8, finish="tiles", use_bricks=True, max_
                                studs_up=stage >= 1, recolor=stage == 2, trim=stage >= 3)
             if zone < 0 or (ch == 0 and zone == 0 and stage >= 3):   # nothing repairable left
                 break
+        _, parts, stats, W, no_tile = kept
         stats.update(change_counts(V, W, palette))
         stats["studded_cells"] = _studded_by_repair(parts, W, no_tile, finish)
         stats["design_voxels"] = int((V > 0).sum())

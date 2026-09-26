@@ -243,9 +243,11 @@ def voxelize(tris, tri_idx, size_mm, fill=True, spacing=1.2):
         else:
             # cell centres inside the surface, plus thin parts the rays miss (fins, flags),
             # with the skin cells they grow from (their roots, next to the solid body)
-            thin = shell & ~ndimage.binary_dilation(solid, iterations=1)
+            thin = _sheets(shell & ~ndimage.binary_dilation(solid, iterations=1))
             if thin.any():
-                thin |= ndimage.binary_dilation(thin, iterations=1) & shell
+                # roots: skin cells touching both the thin part and the solid body
+                thin |= (ndimage.binary_dilation(thin, iterations=1) & shell
+                         & ndimage.binary_dilation(solid, iterations=1))
             solid |= thin
         solid = join_diagonals(solid)
         solid |= _fill_corners(solid)
@@ -280,41 +282,53 @@ def _fill_corners(S):
     return add
 
 
+def _sheets(T, min_span=3):
+    """Thin parts worth keeping: pieces at least `min_span` studs long across (a fin, a flag).
+    Small blobs are surface cells overshooting a tapering tip, not features."""
+    from scipy import ndimage
+    lab, n = ndimage.label(T, structure=np.ones((3, 3, 3), dtype=bool))
+    keep = np.zeros(n + 1, dtype=bool)
+    for k, sl in enumerate(ndimage.find_objects(lab), start=1):
+        if sl is not None and max(sl[0].stop - sl[0].start, sl[1].stop - sl[1].start) >= min_span:
+            keep[k] = True
+    return keep[lab] & T
+
+
 def join_diagonals(S, rounds=12):
     """Bricks only join face to face. Where two face-connected pieces of S touch only along an
     edge (a thin diagonal fin rasterised as a staircase of cells), fill one of the two cells
-    that would join them face-on, until nothing is joined only that way."""
+    that would join them face-on (the more enclosed one, so a tapering tip doesn't widen),
+    until nothing is joined only that way."""
     from scipy import ndimage
     S = S.copy()
     offs = [(1, 1, 0), (1, -1, 0), (1, 0, 1), (1, 0, -1), (0, 1, 1), (0, 1, -1)]
+    six = [(1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)]
     for _ in range(rounds):
         lab, n = ndimage.label(S)
         if n <= 1:
             break
-        add = np.zeros_like(S)
         P = np.pad(lab, 1)
-        core = (slice(1, -1),) * 3
+        F = np.pad(S, 1).astype(np.int8)
+        nb = sum(F[tuple(slice(1 + d, F.shape[k] - 1 + d) for k, d in enumerate(o))] for o in six)
+        nb = np.pad(nb, 1)
+        add = np.zeros_like(S)
         for o in offs:
-            shift = tuple(slice(1 + d, P.shape[k] - 1 + d) for k, d in enumerate(o))
-            other = P[shift]
+            other = P[tuple(slice(1 + d, P.shape[k] - 1 + d) for k, d in enumerate(o))]
             meet = (lab > 0) & (other > 0) & (other != lab)
             if not meet.any():
                 continue
-            # the two face bridges between a cell and its diagonal neighbour
-            b1 = tuple(slice(1 + (o[k] if k == _first(o) else 0), P.shape[k] - 1 + (o[k] if k == _first(o) else 0))
-                       for k in range(3))
-            b2 = tuple(slice(1 + (o[k] if k != _first(o) else 0), P.shape[k] - 1 + (o[k] if k != _first(o) else 0))
-                       for k in range(3))
-            meet &= (P[b1] == 0) & (P[b2] == 0)
+            k1, k2 = [k for k, d in enumerate(o) if d]
+            s1 = tuple(slice(1 + (o[k] if k == k1 else 0), P.shape[k] - 1 + (o[k] if k == k1 else 0)) for k in range(3))
+            s2 = tuple(slice(1 + (o[k] if k == k2 else 0), P.shape[k] - 1 + (o[k] if k == k2 else 0)) for k in range(3))
+            meet &= (P[s1] == 0) & (P[s2] == 0)
             if not meet.any():
                 continue
-            # fill the first bridge (shifted by the first nonzero axis of the offset)
-            k = _first(o)
+            first = nb[s1] >= nb[s2]            # the bridge cell with more filled neighbours
             idx = np.nonzero(meet)
-            pos = list(idx)
-            pos[k] = pos[k] + o[k]
-            add[tuple(pos)] = True
-        del core
+            for pick, k in ((first[idx], k1), (~first[idx], k2)):
+                pos = [a[pick] for a in idx]
+                pos[k] = pos[k] + o[k]
+                add[tuple(pos)] = True
         if not add.any():
             break
         S |= add
@@ -327,9 +341,29 @@ def _first(o):
 
 def _inside_by_parity(tris, shape):
     """Cells whose centre is inside a closed mesh: cast a vertical ray through every column
-    centre and fill between pairs of crossings. None if the mesh doesn't look closed."""
+    centre and fill between pairs of crossings. None if the mesh doesn't look closed.
+    A ray through a shared edge or vertex hits two or more triangles at the same point, which
+    would flip inside and outside for the rest of the column: coincident hits count once, and
+    the rays are cast at three slightly different offsets, each cell taking the majority of
+    the columns that came out even."""
+    votes = np.zeros(shape, dtype=np.int8)
+    valid = np.zeros(shape[:2], dtype=np.int8)
+    for k, (ox, oz) in enumerate(((1e-4, 2e-4), (3.1e-4, 1.3e-4), (2.3e-4, 3.7e-4))):
+        r = _parity_once(tris, shape, ox, oz)
+        if r is None:
+            if k == 0:
+                return None
+            continue
+        solid, ok = r
+        votes += solid
+        valid += ok
+    return (votes * 2 > valid[:, :, None]) & (valid[:, :, None] > 0)
+
+
+def _parity_once(tris, shape, ox, oz):
+    """One set of vertical rays, offset (ox, oz) mm from the column centres. Returns (solid,
+    columns with an even number of crossings) or None if the mesh doesn't look closed."""
     NX, NZ, NY = shape
-    eps = 1e-4                                          # keep rays off shared edges
     a, b, c = tris[:, 0], tris[:, 1], tris[:, 2]
     lo = np.floor((np.minimum(np.minimum(a, b), c)[:, [0, 2]] / STUD_MM) - 0.5).astype(np.int64) + 1
     hi = np.floor((np.maximum(np.maximum(a, b), c)[:, [0, 2]] / STUD_MM) - 0.5).astype(np.int64)
@@ -344,7 +378,7 @@ def _inside_by_parity(tris, shape):
     k = np.arange(cnt.sum()) - np.repeat(np.cumsum(cnt) - cnt, cnt)
     ix = lo[t, 0] + k // nz[t]
     iz = lo[t, 1] + k % nz[t]
-    px, pz = (ix + 0.5) * STUD_MM + eps, (iz + 0.5) * STUD_MM + 2 * eps
+    px, pz = (ix + 0.5) * STUD_MM + ox, (iz + 0.5) * STUD_MM + oz
     A, B, C = a[t], b[t], c[t]
     d = (B[:, 2] - C[:, 2]) * (A[:, 0] - C[:, 0]) + (C[:, 0] - B[:, 0]) * (A[:, 2] - C[:, 2])
     ok = np.abs(d) > 1e-12
@@ -354,23 +388,30 @@ def _inside_by_parity(tris, shape):
     w2 = 1 - w0 - w1
     hit = ok & (w0 >= 0) & (w1 >= 0) & (w2 >= 0)
     y = w0 * A[:, 1] + w1 * B[:, 1] + w2 * C[:, 1]
+    up = (((B[:, 2] - A[:, 2]) * (C[:, 0] - A[:, 0]) - (B[:, 0] - A[:, 0]) * (C[:, 2] - A[:, 2])) > 0)[hit]
     col = (ix * NZ + iz)[hit]
     y = y[hit]
-    order = np.lexsort((y, col))
-    col, y = col[order], y[order]
+    order = np.lexsort((up, y, col))
+    col, y, up = col[order], y[order], up[order]
     if not len(col):
         return None
+    # the same surface hit twice (through a shared edge or vertex): same point, same facing.
+    # Two surfaces that touch (a cap on a cap) face opposite ways and both count.
+    dup = np.r_[False, (np.diff(col) == 0) & (np.diff(y) < 1e-6) & (up[1:] == up[:-1])]
+    col, y = col[~dup], y[~dup]
     starts = np.r_[0, np.nonzero(np.diff(col))[0] + 1]
     counts = np.diff(np.r_[starts, len(col)])
     if (counts % 2).mean() > 0.05:
         return None
     solid = np.zeros(shape, dtype=bool)
+    ok = np.zeros(shape[:2], dtype=bool)
     centres = (np.arange(NY) + 0.5) * PLATE_MM
     for s0, n in zip(starts, counts):
         if n % 2:
             continue
         cx, cz = divmod(int(col[s0]), NZ)
+        ok[cx, cz] = True
         ys = y[s0:s0 + n]
         for k2 in range(0, n, 2):
             solid[cx, cz] |= (centres >= ys[k2]) & (centres < ys[k2 + 1])
-    return solid
+    return solid, ok
