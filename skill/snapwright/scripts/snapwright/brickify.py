@@ -268,7 +268,7 @@ class Packer:
             self.req[sl] = np.where(free, self.V[sl], self.req[sl])
 
     # ---- packing ----------------------------------------------------------
-    def _score(self, x, z, dx, dz, y, pref):
+    def _score(self, x, z, dx, dz, y, pref, h=1):
         score = float(dx * dz)
         if y > 0:
             below = self.owner[x:x + dx, z:z + dz, y - 1]
@@ -280,7 +280,10 @@ class Packer:
                 p = self.parts[ids[0]]
                 if p["x"] == x and p["z"] == z and p["dx"] == dx and p["dz"] == dz:
                     score -= 3.0      # exact stack = seam straight through
-            score -= SEAM * _seam_run(self.owner[:, :, y - 1], x, z, dx, dz)
+            # long seams matter in stacked plates (flat bases, floors); brick walls already
+            # bond through the bridging bonus
+            if h == 1 and all(self.parts[i]["h"] == 1 for i in ids):
+                score -= SEAM * _seam_run(self.owner[:, :, y - 1], x, z, dx, dz)
         if (dx > dz and pref == 0) or (dz > dx and pref == 1):
             score += 0.6
         return score + self.rng.random() * self.jitter
@@ -458,7 +461,7 @@ class Packer:
             for x, z in hang:
                 if not free[x, z]:
                     continue
-                cands = sorted(((self._score(c[1], c[2], c[3], c[4], y, pref), i, c)
+                cands = sorted(((self._score(c[1], c[2], c[3], c[4], y, pref, h), i, c)
                                 for i, c in enumerate(options(x, z))), reverse=True)[:48]
                 best, bs = None, -1e9
                 for sc, _, cand in cands:
@@ -488,7 +491,7 @@ class Packer:
             for k, (t, rot, dx, dz) in enumerate(shapes):
                 if not fm.ok[k][x, z]:
                     continue
-                s = self._score(x, z, dx, dz, y, pref)
+                s = self._score(x, z, dx, dz, y, pref, h)
                 if s > bs:
                     best, bs = (t, dx, dz, int(fm.color[k][x, z]), rot), s
             if best is None:
@@ -498,7 +501,7 @@ class Packer:
             fm.occupy(x, z, dx, dz)
 
 
-SEAM, SEAM_MIN = 3.0, 4   # score per stud of a whole side (>= SEAM_MIN long) on a joint below
+SEAM, SEAM_MIN = 3.0, 6   # score per stud of a whole side (>= SEAM_MIN long) on a joint below
 
 
 def _seam_run(B, x, z, dx, dz):
