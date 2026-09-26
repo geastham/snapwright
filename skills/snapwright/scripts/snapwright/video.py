@@ -9,6 +9,7 @@ ffmpeg the video is written as an animated WebP instead.
 from __future__ import annotations
 
 import math
+import os
 import shutil
 import subprocess
 
@@ -23,6 +24,11 @@ PAPER = (247, 245, 240)
 INK = (38, 38, 38)
 SOFT = (120, 120, 120)
 DROP = 14            # plates a part falls from
+# Every video carries the maker's watermark in the bottom-right corner: the blog's name and
+# address, with its logo beside them when assets/watermark.png is present.
+WATERMARK = ("The Augmented Mind", "eastham.ai")
+WATERMARK_LOGO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "assets",
+                              "watermark.png")
 FALL = 9             # frames a part takes to land
 
 
@@ -33,12 +39,31 @@ def _font(size):
         return ImageFont.load_default()
 
 
+_LOGO = {}
+
+
+def _watermark(out, d, lines, right, y0, H, big, small):
+    """The maker's mark, right-aligned in the bottom corner: name, address, logo to the left."""
+    name, url = lines
+    d.text((right, y0 + int(H * 0.008)), name, fill=INK, font=small, anchor="ra")
+    d.text((right, y0 + int(H * 0.055)), url, fill=SOFT, font=small, anchor="ra")
+    if os.path.exists(WATERMARK_LOGO):
+        side = int(H * 0.075)
+        if side not in _LOGO:
+            logo = Image.open(WATERMARK_LOGO).convert("RGBA")
+            logo.thumbnail((side, side), Image.LANCZOS)
+            _LOGO[side] = logo
+        logo = _LOGO[side]
+        wtxt = max(d.textlength(name, font=small), d.textlength(url, font=small))
+        out.paste(logo, (int(right - wtxt - logo.width - H * 0.015), y0), logo)
+
+
 def _ease_out(u):
     return 1 - (1 - u) ** 3
 
 
 def build_video(model, path, catalog=None, seconds=24.0, fps=30, size=(1080, 1080), view=0,
-                hold=1.5, turn=True, credit="Snapwright", log=print):
+                hold=1.5, turn=True, watermark=WATERMARK, log=print):
     """Write the build video to `path` (.mp4, or .webp without ffmpeg). Returns the path."""
     cat = catalog or Catalog()
     W, H = size[0] // 2 * 2, size[1] // 2 * 2
@@ -86,8 +111,8 @@ def build_video(model, path, catalog=None, seconds=24.0, fps=30, size=(1080, 108
         x0, y0 = int(W * 0.05), int(H * 0.87)
         d.text((x0, y0), title, fill=INK, font=big)
         d.text((x0, y0 + int(H * 0.055)), f"{placed:,} / {n:,} parts", fill=SOFT, font=small)
-        if credit:
-            d.text((W - x0, y0 + int(H * 0.055)), credit, fill=SOFT, font=small, anchor="ra")
+        if watermark:
+            _watermark(out, d, watermark, W - x0, y0, H, big, small)
         return out
 
     def render(shown, v):
