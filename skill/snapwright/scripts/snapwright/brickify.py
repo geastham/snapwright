@@ -111,6 +111,7 @@ class Packer:
             vals, cnt = np.unique(V[np.isin(V, opaque)], return_counts=True)
             interior = int(vals[np.argmax(cnt)]) if len(vals) else 1
         self.interior = interior
+        self.allow = allowed_colours(catalog, palette, interior)
         top = np.zeros(V.shape, dtype=bool)
         top[:, :, :-1] = (V[:, :, :-1] > 0) & (V[:, :, 1:] == 0)
         top[:, :, -1] = V[:, :, -1] > 0
@@ -196,7 +197,7 @@ class Packer:
                         continue
                     cells = [(x, z) for _, x, z in run]
                     vals = {int(self.req[x, z, yy]) for x, z in cells for yy in range(y, y + 3)} - {0}
-                    if len(vals) > 1:
+                    if len(vals) > 1 or not self._ok(t, next(iter(vals), 0)):
                         continue
                     xs, zs = [c[0] for c in cells], [c[1] for c in cells]
                     x0, z0 = min(xs), min(zs)
@@ -215,13 +216,20 @@ class Packer:
                 else:
                     k += 1
 
+    def _ok(self, t, cidx):
+        """May part type t come in palette colour cidx (0 = the interior colour)?"""
+        return self.allow is None or bool(self.allow[t.id][cidx])
+
     def _shape_surface(self):
         """Slopes, inverted slopes and round parts claim their cells before normal packing
-        (see shaping.py). Cells the repair loop is working on are left alone."""
+        (see shaping.py). Cells the repair loop is working on are left alone, and so are
+        shapes that aren't made in the colour needed (normal packing covers those cells)."""
         from .shaping import find_shapes
         blocked = self.no_brick | (self.priority > 0)
         for s in find_shapes(self.V, self.req, self.cat, self.finish, blocked, visible=self.vis):
             t = s["t"]
+            if not self._ok(t, s["color"] or 0):
+                continue
             pid = len(self.parts)
             x, z, y, dx, dz, h = s["x"], s["z"], s["y"], s["dx"], s["dz"], s["h"]
             self.owner[x:x + dx, z:z + dz, y:y + h] = pid
@@ -291,7 +299,8 @@ class Packer:
                 x, z = min(left)
                 for t, rot, dx, dz in shapes:
                     rect = {(x + i, z + j) for i in range(dx) for j in range(dz)}
-                    if rect <= left and colour(rect) is not None and any(under[c] for c in rect):
+                    if rect <= left and colour(rect) is not None and self._ok(t, colour(rect)) \
+                            and any(under[c] for c in rect):
                         out.append((t, rot, x, z, dx, dz, colour(rect)))
                         left -= rect
                         break
@@ -320,7 +329,7 @@ class Packer:
                             ax, az = x - ox, z - oz
                             rect = {(ax + i, az + j) for i in range(dx) for j in range(dz)}
                             if (a, b) not in rect or not rect <= pool or colour(rect) is None \
-                                    or not any(under[c] for c in rect):
+                                    or not self._ok(t, colour(rect)) or not any(under[c] for c in rect):
                                 continue
                             rest = cover(pool - rect)
                             if rest is None:
@@ -374,7 +383,7 @@ class Packer:
                             dist[a, b] = dist[x, z] + 1
                             nxt.append((a, b))
                 frontier = nxt
-            fm = FitMaps(shapes, free, col, under)
+            fm = FitMaps(shapes, free, col, under, allow=self.allow)
             # a supported priority cell only counts as covered by a part that joins it to a
             # neighbour; a lone 1x1 there is what stranded it (left to phase 2 as a fallback)
             prio_layer = self.priority[:, :, y]
@@ -427,7 +436,7 @@ class Packer:
                     self._place(t, ax, az, y, dx, dz, h, c, free, rot)
                     fm.occupy(ax, az, dx, dz)
         # phase 2: scan order, rectangle anchored at the first free cell
-        fm = FitMaps(shapes, free, col)
+        fm = FitMaps(shapes, free, col, allow=self.allow)
         key = (lambda c: (c[0], c[1])) if pref == 1 else (lambda c: (c[1], c[0]))
         for x, z in sorted(map(tuple, np.argwhere(free)), key=key):
             if not free[x, z]:
@@ -444,6 +453,24 @@ class Packer:
             t, dx, dz, c, rot = best
             self._place(t, x, z, y, dx, dz, h, c, free, rot)
             fm.occupy(x, z, dx, dz)
+
+
+def allowed_colours(catalog, palette, interior):
+    """{part id: bool array over palette index (0 = interior colour)}: which colours each part
+    may take, from the catalog's verified availability. None when the catalog has none (then
+    every combo is allowed and reported by tier). The 1x1 brick, plate and tile stay allowed
+    in every colour, so a cell can always be covered; the checks still flag such a combo as
+    unverified."""
+    if not catalog.availability:
+        return None
+    out = {}
+    for t in catalog.parts:
+        a = np.array([True] + [catalog.available(t.id, k) != "unverified" for k in palette])
+        if t.shape == "box" and t.L == t.W == 1:
+            a[:] = True
+        a[0] = a[interior]
+        out[t.id] = a
+    return out
 
 
 def _shapes(types):
@@ -474,13 +501,14 @@ class FitMaps:
 
     ok[k][ax, az] is True when shape k anchored at (ax, az) lies on free cells, sees at most
     one required colour (0 = wildcard), no forbidden (-1) cells, and, if `under` is given,
-    rests on at least one occupied cell below. color[k] holds the colour it would take.
+    rests on at least one occupied cell below. color[k] holds the colour it would take, and
+    `allow` ({part id: bool per palette index}) rules out colours a part isn't made in.
     Window tests use summed-area tables over the free cells' bounding box; colours are
     uniform exactly when n * sum(v^2) == sum(v)^2 over the n required cells.
     This replaces per-rectangle numpy slicing, which dominated packing time.
     """
 
-    def __init__(self, shapes, free, col, under=None):
+    def __init__(self, shapes, free, col, under=None, allow=None):
         NX, NZ = free.shape
         self.shapes = shapes
         self.ok = [np.zeros((NX, NZ), dtype=bool) for _ in shapes]
@@ -509,6 +537,8 @@ class FitMaps:
                 colour = np.where(n > 0, sv // np.maximum(n, 1), 0)
                 cache[dx, dz] = (good, colour)
             good, colour = cache[dx, dz]
+            if allow is not None and t.id in allow:
+                good = good & allow[t.id][np.clip(colour, 0, len(allow[t.id]) - 1)]
             gx, gz = good.shape
             self.ok[k][x0:x0 + gx, z0:z0 + gz] = good
             self.color[k][x0:x0 + gx, z0:z0 + gz] = colour

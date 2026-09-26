@@ -83,8 +83,10 @@ class Catalog:
                       key=lambda p: (-p.area * p.h, -p.L, p.id))
 
     def available(self, part_id: str, color: str) -> str:
-        """Return 'verified', 'likely' or 'unverified' for a part-colour combo."""
-        if self.availability:
+        """Return 'verified', 'likely' or 'unverified' for a part-colour combo. With synced
+        availability (sw.py sync-catalog) a listed part is verified or unverified; otherwise,
+        or for a part added since the sync, core colours are 'likely'."""
+        if part_id in self.availability:
             ok = color in self.availability.get(part_id, [])
             return "verified" if ok else "unverified"
         tier = self.colors.get(color, {}).get("tier")
