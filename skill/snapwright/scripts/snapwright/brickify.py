@@ -254,6 +254,7 @@ class Packer:
                 p = self.parts[ids[0]]
                 if p["x"] == x and p["z"] == z and p["dx"] == dx and p["dz"] == dz:
                     score -= 3.0      # exact stack = seam straight through
+            score -= SEAM * _seam_run(self.owner[:, :, y - 1], x, z, dx, dz)
         if (dx > dz and pref == 0) or (dz > dx and pref == 1):
             score += 0.6
         return score + self.rng.random() * self.jitter
@@ -453,6 +454,31 @@ class Packer:
             t, dx, dz, c, rot = best
             self._place(t, x, z, y, dx, dz, h, c, free, rot)
             fm.occupy(x, z, dx, dz)
+
+
+SEAM, SEAM_MIN = 3.0, 4   # score per stud of a whole side (>= SEAM_MIN long) on a joint below
+
+
+def _seam_run(B, x, z, dx, dz):
+    """Studs of the rectangle's sides that lie, whole, on a joint between two parts in the
+    layer below (owner grid B): the seam then runs straight up through both layers. A short
+    or partly offset side is normal running bond; long whole-side seams are what split a
+    flat base into strips. Edges on the model's outline don't count."""
+    NX, NZ = B.shape
+    n = 0
+    if dz >= SEAM_MIN:
+        for a in ((x - 1, x), (x + dx - 1, x + dx)):
+            if 0 <= a[0] and a[1] < NX:
+                l, r = B[a[0], z:z + dz], B[a[1], z:z + dz]
+                if ((l >= 0) & (r >= 0) & (l != r)).all():
+                    n += dz
+    if dx >= SEAM_MIN:
+        for a in ((z - 1, z), (z + dz - 1, z + dz)):
+            if 0 <= a[0] and a[1] < NZ:
+                l, r = B[x:x + dx, a[0]], B[x:x + dx, a[1]]
+                if ((l >= 0) & (r >= 0) & (l != r)).all():
+                    n += dx
+    return n
 
 
 def allowed_colours(catalog, palette, interior):
