@@ -10,6 +10,8 @@ Coordinates: `x` and `z` in studs, `y` in plates, `y = 0` is the table. Cell cen
 | Call | What it does |
 |---|---|
 | `Model(w, d, h, title=, subtitle=, author=)` | empty grid, w x d studs, h plates |
+| `Model.from_mesh(path, height_cm=20, up="y", colors=None)` | a design from .obj/.stl/.glb (see likeness.md) |
+| `thin_details()` | visible colour details only 1 stud across |
 | `box(x0, z0, y0, x1, z1, y1, color)` | half-open box |
 | `cylinder(cx, cz, r, y0, y1, color, inner_r=None)` | vertical cylinder or tube |
 | `cone(cx, cz, r0, r1, y0, y1, color, inner=None)` | frustum; `inner` = wall thickness |

@@ -3,7 +3,8 @@
 Design buildable brick models with Claude: photo, sketch or idea in; verified parts layout,
 instruction book, 3D build viewer and parts lists out.
 
-- **Design**: Claude writes a short design file in a voxel DSL and iterates on previews.
+- **Design**: Claude writes a short design file in a voxel DSL (or starts from an OBJ/STL/GLB)
+  and iterates on previews and a silhouette likeness score against the reference.
 - **Brickify**: bricks, plates and tiles with staggered joints, anchored overhangs and a repair loop;
   slopes, inverted slopes and round parts where the surface tapers or curves; optional hollowing
   with internal bracing; an automatic base for models that would tip; sideways-built panels
@@ -20,6 +21,7 @@ make setup
 make test           # unit, regression-fixture, property and golden tests (~40 s)
 make example        # builds examples/lighthouse/out/
 python skill/snapwright/scripts/sw.py preview my_design.py --out out/preview
+python skill/snapwright/scripts/sw.py compare my_design.py --ref photo.jpg   # likeness score
 python skill/snapwright/scripts/sw.py build   my_design.py --out out --audience family
 ```
 

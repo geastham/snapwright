@@ -42,10 +42,26 @@ them with slopes, inverted slopes and round parts automatically.
 ```bash
 python <skill>/scripts/sw.py preview design.py --out out/preview
 ```
-Look at all four `preview_view*.png` next to the reference. Fix proportions and colours
-before building. Iterate 2-4 times; this is where likeness comes from. If preview prints a
+Look at all four `preview_view*.png` next to the reference. If preview prints a
 `warning: ... voxels ... don't touch the rest of the model or the ground`, join that part
 to the model now: nothing can hold it up and the build will fail.
+
+When there is a reference picture, measure the likeness instead of eyeballing it:
+
+```bash
+python <skill>/scripts/sw.py compare design.py --ref photo.jpg --out out/compare
+```
+
+It finds the camera angle where the model best matches the picture (azimuth 0 = the model's
++z face, so design subjects facing +z), prints the silhouette IoU, colour agreement and
+concrete hints ("40-50% down from the top: the model is 20% too narrow"), and writes
+`compare.png` (reference, model at that view, overlap). Look at the PNG, apply the hints,
+re-run. Iterate until IoU >= 0.8 and the features that make the subject recognisable are at
+least 2 studs wide (compare and preview list 1-stud colour details). Usually 2-5 rounds.
+Details, including busy backgrounds (`--mask`), in `references/likeness.md`.
+
+If the user has a 3-D model (.obj, .stl, .glb), start from it:
+`model = Model.from_mesh("thing.glb", height_cm=25)` then refine as usual.
 
 ## 3. Build and check
 
@@ -111,10 +127,11 @@ limited palette for a graphic look.
 
 ## Files
 
-- `scripts/sw.py`: CLI (preview, build, viewer, book, sync-catalog)
+- `scripts/sw.py`: CLI (preview, compare, build, viewer, book, sync-catalog)
 - `scripts/snapwright/`: dsl, brickify, validate, steps, render, book, exporters, pipeline
 - `assets/catalog.json`: parts and colours; `assets/viewer_template.html`
 - `references/design-dsl.md`: every DSL call with examples. Read before writing a design.
+- `references/likeness.md`: compare, reading its hints, masks, meshes
 - `references/geometry-and-checks.md`: units, connection rules, repairs, each check and its fix,
   model.json schema
 - `references/book-style.md`: book conventions and what to avoid imitating

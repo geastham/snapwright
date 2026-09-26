@@ -244,29 +244,43 @@ def iou(a, b):
     return float(np.logical_and(a, b).sum() / u) if u else 0.0
 
 
-def best_view(model, ref_norm, azimuths=range(0, 360, 15), elevations=(0, 15, 30)):
-    """(iou, azimuth, elevation) of the view whose silhouette best matches ref_norm."""
+def best_view(model, ref_norm, azimuths=range(0, 360, 15), elevations=(0, 15, 30),
+              ref_rgb=None, catalog=None):
+    """(iou, azimuth, elevation) of the view that best matches the reference. Silhouettes
+    alone can't tell a front from a back, so among views within 0.05 IoU of the best, the one
+    whose colours agree most wins (score = IoU + 0.3 x colour agreement)."""
     px = _extent(model) / 110.0
-    pts, _ = model_points(model, px)
-    best = (-1.0, 0, 0)
+    pts, keys = model_points(model, px)
+    seen = {}
 
     def score(a, e):
-        m, _, _ = project(None, a, e, px=px, points=pts)
-        return iou(normalise(m)[0], ref_norm)
+        k = (round(a % 360, 3), e)
+        if k not in seen:
+            m, c, _ = project(None, a, e, px=px, points=pts)
+            mn, cn = normalise(m, [c])
+            seen[k] = (iou(mn, ref_norm), cn, mn)
+        return seen[k][0]
     for e in elevations:
         for a in azimuths:
-            s = score(a, e)
-            if s > best[0]:
-                best = (s, a, e)
-    _, a0, e0 = best
-    for e in (e0 - 7.5, e0, e0 + 7.5):
-        if not -10 <= e <= 45:
-            continue
-        for a in np.arange(a0 - 10, a0 + 10.1, 5):
-            s = score(float(a) % 360, e)
-            if s > best[0]:
-                best = (s, float(a) % 360, e)
-    return best
+            score(a, e)
+    # refine around the few best coarse views (front/back ambiguity keeps more than one alive)
+    for (a0, e0), _ in sorted(seen.items(), key=lambda kv: -kv[1][0])[:4]:
+        for e in (e0 - 7.5, e0, e0 + 7.5):
+            if -10 <= e <= 45:
+                for a in np.arange(a0 - 10, a0 + 10.1, 5):
+                    score(float(a), e)
+    top = max(v[0] for v in seen.values())
+    cands = [(k, v) for k, v in seen.items() if v[0] >= top - 0.05]
+    if ref_rgb is None or catalog is None or len(cands) == 1:
+        (a, e), v = max(cands, key=lambda kv: kv[1][0])
+        return v[0], a, e
+    best = None
+    for (a, e), (sc, cn, mn) in sorted(cands, key=lambda kv: -kv[1][0])[:12]:
+        agree, _ = colour_agreement(ref_rgb, ref_norm & mn, cn, keys, catalog)
+        total = sc + 0.3 * (agree or 0.0)
+        if best is None or total > best[0]:
+            best = (total, sc, a, e)
+    return best[1], best[2], best[3]
 
 
 # ---- hints ----------------------------------------------------------------------------------
@@ -309,8 +323,9 @@ def colour_agreement(ref_rgb_n, both, mod_col_n, palette, catalog):
     if not both.any() or not palette:
         return None, None
     keys = list(palette)
-    lab_pal = rgb_to_lab(np.array([hex_to_rgb(catalog.colors[k]["hex"]) for k in keys]))
-    lab = rgb_to_lab(ref_rgb_n[both])
+    w = np.array([0.4, 1.0, 1.0])            # light and shade change lightness more than hue
+    lab_pal = rgb_to_lab(np.array([hex_to_rgb(catalog.colors[k]["hex"]) for k in keys])) * w
+    lab = rgb_to_lab(ref_rgb_n[both]) * w
     nearest = np.argmin(((lab[:, None, :] - lab_pal[None]) ** 2).sum(-1), axis=1) + 1
     model = mod_col_n[both]
     ok = nearest == model
@@ -330,7 +345,7 @@ def compare(model, ref_path, catalog, mask_path=None, out_png=None):
     PNG (reference, model at the best view, overlap) if out_png is given."""
     rgb, ref_mask, info = load_reference(ref_path, mask_path)
     ref_n, ref_rgb_n = normalise(ref_mask, [rgb])
-    score, az, el = best_view(model, ref_n)
+    score, az, el = best_view(model, ref_n, ref_rgb=ref_rgb_n, catalog=catalog)
     px = _extent(model) / 160.0
     pts, keys = model_points(model, px)
     mmask, mcol, _ = project(None, az, el, px=px, points=pts)

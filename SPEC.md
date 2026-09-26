@@ -51,6 +51,8 @@ regenerable from `model.json` alone.
 - After M3 (v0.4): sideways panels (SNOT) built flat and clipped onto side-stud bricks, checked
   per panel, sub-build insets and attach steps in the book, attach animation in the viewer,
   MPD LDraw export; `examples/robot`; schema snapwright.model/0.4
+- After M4: `sw.py compare` (silhouette IoU from the best view, hints, side by side),
+  thin-detail notes, `Model.from_mesh` (OBJ/STL/GLB, numpy voxeliser)
 
 ## 5. Milestones and acceptance criteria
 
@@ -123,4 +125,4 @@ regenerable from `model.json` alone.
    staggered base plate layer (or recommend a baseplate) and verify one structure.
 8. (M1: export/re-import round-trip test; LeoCAD screenshot check still in M2) LDraw rotation/origin conventions need a round-trip test in LeoCAD.
 9. Viewer has no step-by-step mode or new-part highlight yet.
-10. No CLI `compare` / reference scoring yet (M4).
+10. (Done in M4) No CLI `compare` / reference scoring yet (M4).
