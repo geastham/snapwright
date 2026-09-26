@@ -93,6 +93,22 @@ class PanelSpec:
         y0, y1 = int(math.floor(lo[1] / PLATE_MM + 1e-9)), int(math.ceil(hi[1] / PLATE_MM - 1e-9))
         return x0, x1, z0, z1, y0, y1
 
+    def slide_path(self, shape):
+        """Main-grid cell box in front of the panel, out to the edge of the grid: the panel slides
+        on through here, so nothing may be built there before it is attached."""
+        x0, x1, z0, z1, y0, y1 = self.main_region()
+        nx, nz = DIR_VEC[self.face]
+        NX, NZ, _ = shape
+        if nx > 0:
+            x0, x1 = x1, NX
+        elif nx < 0:
+            x0, x1 = 0, x0
+        elif nz > 0:
+            z0, z1 = z1, NZ
+        else:
+            z0, z1 = 0, z0
+        return x0, x1, z0, z1, y0, y1
+
     def behind(self, i):
         """Main-grid (x, z) of the cell right behind the face at panel column i."""
         nx, nz = DIR_VEC[self.face]

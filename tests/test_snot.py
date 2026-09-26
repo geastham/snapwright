@@ -169,3 +169,16 @@ def test_random_panels_are_held_or_fail_honestly(seed):
         assert not st["passed"] and sub["failures"]
     else:
         assert not sub["failures"]
+
+
+def test_panel_blocked_by_parts_in_front_fails():
+    """A panel under a porch roof it can't slide past: the roof is built before the panel is
+    attached (it stands on the model below), so the panel can't go on."""
+    m = Model(12, 16, 40)
+    m.box(1, 1, 0, 11, 11, 36, "tan")
+    m.box(1, 11, 0, 11, 15, 3, "tan")                       # a step in front...
+    m.box(4, 13, 3, 8, 15, 30, "tan")                       # ...with a post right in front of the face
+    pn = m.panel("Sign", face="+z", at=2, plane=11, top=30, width=8, height=6)
+    pn.box(0, 0, 0, 8, 6, 2, "red")
+    model, _ = solve(m, seeds=1)
+    assert any("can't slide" in f for f in model["stats"]["failures"]), model["stats"]["failures"]

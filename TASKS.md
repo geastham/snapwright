@@ -21,7 +21,8 @@ Current milestone: **M3 Sideways subassemblies (SNOT)** (branch `m3-snot`). M1 a
 - [x] LDraw export of panels as MPD submodels (+ ldraw_check, LeoCAD); BOM includes panel parts
 - [x] Example with a SNOT face and chest (examples/robot); tests (oracles per panel, all faces,
       random panels); docs
-- [ ] PR; merge
+- [x] Slide-path check: nothing built before a panel's attach step may be in front of it
+- [x] PR #4; merged
 
 SNOT facts (official LDraw library): 87087 / 11211 / 30414 side studs sit 10 LDU below the
 top of the brick (5.6 mm above its bottom) on the -Z face, pointing -Z (our +z).

@@ -333,6 +333,20 @@ def _solve_panels(panels, parts, steps, stats, cat, seeds, finish, mps, log):
         pool = by_sub[st["sub"]]["parts"] if st.get("sub") else parts
         for pid in st["parts"]:
             pool[pid]["step"] = n
+    # a panel slides on along its face normal: nothing built before its attach step may be in the way
+    grid = (max((p["x"] + p["dx"] for p in parts), default=0) + 64,
+            max((p["z"] + p["dz"] for p in parts), default=0) + 64, 0)
+    for pn in panels:
+        sp = pn.spec
+        n_attach = next(st["n"] for st in merged if st.get("kind") == "attach" and st["sub"] == sp.name)
+        x0, x1, z0, z1, y0, y1 = sp.slide_path(grid)
+        block = [p for p in parts if p.get("step", 0) < n_attach and p["x"] < x1 and x0 < p["x"] + p["dx"]
+                 and p["z"] < z1 and z0 < p["z"] + p["dz"] and p["y"] < y1 and y0 < p["y"] + p["h"]]
+        if block:
+            f = (f"panel {sp.name}: {len(block)} parts built before it is attached are in front of it "
+                 f"(it can't slide onto its side studs)")
+            fails.append(f)
+            next(sb for sb in subs if sb["name"] == sp.name)["failures"].append(f)
     stats["panels"] = [{"name": sb["name"], "parts": len(sb["parts"]), "studs": sb["anchor_studs"],
                         "offset_mm": sb["face_offset_mm"]} for sb in subs]
     if extra_mass:
