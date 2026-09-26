@@ -204,17 +204,25 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
     log("[2/6] brickify")
     from .snot import anchor_requests
     panels = list(getattr(m, "panels", []))
-    anchors = [r for pn in panels for r in anchor_requests(pn.spec)] or None
-    parts, stats, V_final = brickify(m.V, m.palette, cat, seeds=seeds, finish=finish, log=log,
-                                     shapes=shapes, anchors=anchors)
+    hinged = [pn for pn in panels if getattr(pn.spec, "mount", "") == "hinge"]
+    sideways = [pn for pn in panels if pn not in hinged]
+
+    def pack():
+        anchors = [r for pn in sideways for r in anchor_requests(pn.spec)] or None
+        held = _hinge_placeholders(m, hinged, cat)
+        parts, stats, V_final = brickify(m.V, m.palette, cat, seeds=seeds, finish=finish, log=log,
+                                         shapes=shapes, anchors=anchors)
+        if hinged:
+            parts, stats = _swap_hinges(m, hinged, held, parts, stats, V_final, cat, log)
+        return parts, stats, V_final
+
+    parts, stats, V_final = pack()
     if base == "auto" and stats["com_margin_mm"] < 3 and stats["floating"] == 0 \
             and stats["structures"] == 1:
         n = m.base(layers=2, margin=1)
         log(f"  auto-repair: centre of mass only {stats['com_margin_mm']} mm inside the footprint; "
             f"adding a 2-plate base ({n} cells) and rebuilding")
-        anchors = [r for pn in panels for r in anchor_requests(pn.spec)] or None
-        parts, stats, V_final = brickify(m.V, m.palette, cat, seeds=seeds, finish=finish, log=log,
-                                         shapes=shapes, anchors=anchors)
+        parts, stats, V_final = pack()
         stats["added_cells"] += n
         stats["base_cells"] = n
     tm.lap("brickify")
@@ -286,6 +294,55 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
     return model, V_final
 
 
+def _hinge_placeholders(m, hinged, cat):
+    """Hold the fixed hinge plates' cells with a colour the model doesn't use while packing, so
+    the model under them gets studs (not tiles). Returns (palette index, [(x, z, y)])."""
+    if not hinged:
+        return None
+    spare = next(k for k in ("yellow", "orange", "red", "blue", "white", "tan") if k not in m.palette)
+    idx = m._idx(spare)
+    cells = []
+    for pn in hinged:
+        sp = pn.spec
+        for h in sp.hinges:
+            for (x, z) in sp.fixed_cells(h):
+                m.V[x, z, sp.y] = idx
+                cells.append((x, z, sp.y))
+    return idx, cells
+
+
+def _swap_hinges(m, hinged, held, parts, stats, V_final, cat, log):
+    """Replace the placeholder parts with the fixed hinge plates and re-check the model."""
+    from .validate import validate
+    idx, cells = held
+    spare = m.palette[idx - 1]
+    cellset = set(cells)
+    drop = {p["id"] for p in parts if p["color"] == spare}
+    for p in parts:
+        if p["id"] in drop:
+            own = {(p["x"] + a, p["z"] + b, p["y"] + c) for a in range(p["dx"]) for b in range(p["dz"])
+                   for c in range(p["h"])}
+            if not own <= cellset:
+                raise RuntimeError("hinge placeholder packed together with other cells")
+    kept = [p for p in parts if p["id"] not in drop]
+    for pn in hinged:                  # the hinge plates are part of the design from here on
+        colour = getattr(pn.spec, "hinge_color", "black")
+        k = m._idx(colour)
+        for h in pn.spec.hinges:
+            for (x, z) in pn.spec.fixed_cells(h):
+                m.V[x, z, pn.spec.y] = k
+                V_final[x, z, pn.spec.y] = k
+        kept += pn.spec.fixed_parts(colour)
+    for k, p in enumerate(kept):
+        p["id"] = k
+    fresh = validate(kept, m.V.shape, cat)
+    for k, v in fresh.items():
+        stats[k] = v
+    n = sum(len(pn.spec.hinges) for pn in hinged)
+    log(f"  hinges: {n} locking hinge plates on the model for {len(hinged)} hinged panel(s)")
+    return kept, stats
+
+
 def _viewer_part(p, cat):
     """The fields the viewer needs; shaped parts add shape, dir, catalog L / lip, studs."""
     q = {k: p[k] for k in ("x", "y", "z", "dx", "dz", "h", "color", "studs", "step")}
@@ -313,6 +370,13 @@ def _solve_panels(panels, parts, steps, stats, cat, seeds, finish, mps, log):
     inserts = {}                                    # main step index -> [panel steps]
     for pn in panels:
         sp = pn.spec
+        if getattr(sp, "mount", "") == "hinge":
+            sb, psteps, pf, masses = _solve_hinged(pn, parts, stats, cat, seeds, mps, log)
+            fails += pf
+            extra_mass += masses
+            inserts.setdefault(len(steps), []).extend(psteps)
+            subs.append(sb)
+            continue
         log(f"  panel {sp.name}: {pn.voxel_count():,} voxels, {sp.W} x {sp.H} studs, {sp.D} plates deep")
         pparts, pstats, _ = brickify(pn.V, pn.palette, cat, seeds=max(2, seeds // 2), finish=finish,
                                      log=lambda *a: None, shapes=False)
@@ -374,6 +438,8 @@ def _solve_panels(panels, parts, steps, stats, cat, seeds, finish, mps, log):
             max((p["z"] + p["dz"] for p in parts), default=0) + 64, 0)
     for pn in panels:
         sp = pn.spec
+        if getattr(sp, "mount", "") == "hinge":
+            continue
         n_attach = next(st["n"] for st in merged if st.get("kind") == "attach" and st["sub"] == sp.name)
         x0, x1, z0, z1, y0, y1 = sp.slide_path(grid)
         block = [p for p in parts if p.get("step", 0) < n_attach and p["x"] < x1 and x0 < p["x"] + p["dx"]
@@ -384,7 +450,10 @@ def _solve_panels(panels, parts, steps, stats, cat, seeds, finish, mps, log):
             fails.append(f)
             next(sb for sb in subs if sb["name"] == sp.name)["failures"].append(f)
     stats["panels"] = [{"name": sb["name"], "parts": len(sb["parts"]), "studs": sb["anchor_studs"],
-                        "offset_mm": sb["face_offset_mm"]} for sb in subs]
+                        "offset_mm": sb["face_offset_mm"],
+                        **({"mount": "hinge", "angle": sb["spec"]["angle"], "hinges": sb["hinges"],
+                            "curved": sb["curved"]} if sb["spec"].get("mount") == "hinge" else {})}
+                       for sb in subs]
     if extra_mass:
         from .validate import com_margin_with
         stats["com_margin_mm"] = com_margin_with(parts, extra_mass)
@@ -394,6 +463,113 @@ def _solve_panels(panels, parts, steps, stats, cat, seeds, finish, mps, log):
     return subs, merged, fails
 
 
+def _solve_hinged(pn, parts, stats, cat, seeds, mps, log):
+    """Pack and check one hinged panel. Returns (subassembly, its steps + attach step,
+    failures, [(mass g, x, z)])."""
+    from .hinge import pack_panel, panel_connections, part_center_world, tile_overlaps
+    from .validate import DSU, part_mass_g
+    sp = pn.spec
+    grid = sp.grid_shape()
+    log(f"  panel {sp.name}: {pn.voxel_count():,} voxels, {sp.W} x {sp.H} studs, {sp.D} plates deep, "
+        f"hinged at {sp.angle:g} degrees, {len(getattr(pn, 'placed', []))} curved tiles")
+    pparts, notes = pack_panel(pn, cat, seeds=max(2, seeds // 2))
+    edges, coll = panel_connections(pparts, grid)
+    d = DSU(max(len(pparts), 1))
+    for a, b in edges:
+        d.union(a, b)
+    roots = {d.find(p["id"]) for p in pparts if p.get("kind") == "hinge"}
+    held = [p["id"] for p in pparts if d.find(p["id"]) in roots]
+    n_hinges = sum(1 for p in pparts if p.get("kind") == "hinge")
+    pf = []
+    if n_hinges < 2:
+        pf.append(f"panel {sp.name}: held by {n_hinges} hinge(s); it needs at least 2")
+    if len(held) < len(pparts):
+        pf.append(f"panel {sp.name}: {len(pparts) - len(held)} parts not held through the hinges")
+    if coll:
+        pf.append(f"panel {sp.name}: {coll} colliding cells")
+    over = tile_overlaps(pparts)
+    if over:
+        pf.append(f"panel {sp.name}: {len(over)} curved tiles overlap other tiles")
+    fixed = [p for p in parts if p.get("hinge") == sp.name]
+    if len(fixed) != len(sp.hinges):
+        pf.append(f"panel {sp.name}: {len(fixed)} of {len(sp.hinges)} hinge plates on the model")
+    # nothing of the main model may be where the panel, its hinge layer or the knuckles go
+    import numpy as np
+    hit = []
+    for p in parts:
+        if p.get("hinge") == sp.name:
+            continue
+        X, Z, Y = np.meshgrid(np.arange(p["x"], p["x"] + p["dx"]) + 0.5, np.arange(p["z"], p["z"] + p["dz"]) + 0.5,
+                              np.arange(p["y"], p["y"] + p["h"]) + 0.5, indexing="ij")
+        if sp.keep_clear(X, Y, Z).any():
+            hit.append(p["id"])
+    if hit:
+        pf.append(f"panel {sp.name}: {len(hit)} model parts are in the panel's space")
+    for f in pf:
+        log(f"  FAIL: {f}")
+    for nt in notes:
+        log(f"  panel {sp.name}: {nt}")
+    masses = []
+    for q in pparts:
+        c = part_center_world(sp, q)
+        masses.append((part_mass_g(q), c[0] / 8.0, c[2] / 8.0))
+    psteps = plan_steps(pparts, edges, grid, max_per_step=mps)
+    for st in psteps:
+        st["kind"], st["sub"] = "subassembly", sp.name
+    attach = {"parts": [], "kind": "attach", "sub": sp.name, "level": 0, "view": FACE_VIEWS[sp.toward][0]}
+    curved = sum(1 for q in pparts if q.get("shape") == "outline")
+    sb = {"name": sp.name, "spec": sp.to_json(), "grid": list(grid), "parts": pparts,
+          "anchor_studs": 2 * n_hinges, "hinges": n_hinges, "held": len(held), "face_offset_mm": 0,
+          "curved": curved,
+          "stats": {"parts": len(pparts), "connections": int(sum(edges.values())),
+                    "structures": len({d.find(p["id"]) for p in pparts}), "floating": len(pparts) - len(held),
+                    "collisions": coll, "mass_g": round(sum(part_mass_g(q) for q in pparts), 1)},
+          "failures": pf}
+    log(f"  panel {sp.name}: {len(pparts)} parts ({curved} curved tiles), on {n_hinges} click hinges"
+        + ("; FAIL" if pf else ""))
+    return sb, psteps + [attach], pf, masses
+
+
+def _viewer_hinged(sb, step):
+    """A hinged panel for the viewer: its frame (panel mm -> world mm) and each part in panel
+    mm: a box, or a curved tile's outline; plus the studs left showing."""
+    from .hinge import HingeSpec
+    sp = HingeSpec.from_json(sb["spec"])
+    R, O = sp.rotation(), sp.origin()
+    S, P = 8.0, 3.2
+    parts, occ_top = [], {}
+    for q in sb["parts"]:
+        occ_top.update({(q["x"] + a, q["z"] + b, q["y"] + q["h"] - 1): q["id"]
+                        for a in range(q["dx"]) for b in range(q["dz"])})
+    covered = set()
+    for q in sb["parts"]:
+        if q.get("shape") == "outline":
+            from .hinge import tile_cells
+            c, g, _ = tile_cells([tuple(v) for v in q["outline"]], q["dx"], q["dz"], q["x"], q["z"])
+            covered |= {(i, j, q["y"] - 1) for (i, j) in c}
+    studs = []
+    for q in sb["parts"]:
+        e = {"color": q["color"], "step": q.get("step", 0)}
+        if q.get("shape") == "outline":
+            e["outline"] = [[round(a * S, 2), round(b * S, 2)] for a, b in q["outline"]]
+            e["y0"], e["y1"] = q["y"] * P, (q["y"] + q["h"]) * P
+        else:
+            e["lo"] = [q["x"] * S, q["y"] * P, q["z"] * S]
+            e["hi"] = [(q["x"] + q["dx"]) * S, (q["y"] + q["h"]) * P, (q["z"] + q["dz"]) * S]
+            if q.get("studs"):
+                for a in range(q["dx"]):
+                    for b in range(q["dz"]):
+                        cell = (q["x"] + a, q["z"] + b, q["y"] + q["h"] - 1)
+                        above = (cell[0], cell[1], cell[2] + 1)
+                        if above not in occ_top and cell not in covered:
+                            studs.append([(cell[0] + 0.5) * S, (cell[2] + 1) * P, (cell[1] + 0.5) * S,
+                                          q["color"]])
+        parts.append(e)
+    return {"name": sb["name"], "mount": "hinge", "step": step,
+            "R": [round(float(v), 6) for v in R.ravel()], "O": [round(float(v), 3) for v in O],
+            "n": [float(v) for v in R[:, 1]], "parts": parts, "studs": studs}
+
+
 def _viewer_panels(model):
     """Sideways panels for the viewer: world boxes (mm) per part, the face normal (the way the
     panel slides on) and the step it is attached in."""
@@ -401,6 +577,9 @@ def _viewer_panels(model):
     attach = {st["sub"]: st["n"] for st in model["steps"] if st.get("kind") == "attach"}
     out = []
     for sb in model.get("subassemblies", []):
+        if sb["spec"].get("mount") == "hinge":
+            out.append(_viewer_hinged(sb, attach.get(sb["name"], len(model["steps"]))))
+            continue
         sp = PanelSpec.from_json(sb["spec"])
         _, n, _ = sp.frame()
         boxes = []

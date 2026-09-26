@@ -57,6 +57,14 @@
    "rebrickable": 2,
    "tier": "core"
   },
+  "bright_green": {
+   "name": "Bright Green",
+   "hex": "#4B9F4A",
+   "bricklink": 36,
+   "ldraw": 10,
+   "rebrickable": 10,
+   "tier": "limited"
+  },
   "orange": {
    "name": "Orange",
    "hex": "#D67923",
@@ -1100,6 +1108,106 @@
    "side_mm": 5.6,
    "ldraw": "30414.dat",
    "ldraw_origin": "top"
+  },
+  {
+   "id": "27925",
+   "name": "Tile Round Corner 2 x 2 Macaroni",
+   "kind": "tile_curved",
+   "L": 2,
+   "W": 2,
+   "h": 1,
+   "studs": false,
+   "shape": "outline",
+   "top": "none",
+   "bottom": "none",
+   "ldraw": "27925.dat",
+   "ldraw_origin": "top"
+  },
+  {
+   "id": "27507",
+   "name": "Tile Round Corner 4 x 4 Macaroni",
+   "kind": "tile_curved",
+   "L": 4,
+   "W": 4,
+   "h": 1,
+   "studs": false,
+   "shape": "outline",
+   "top": "none",
+   "bottom": "none",
+   "ldraw": "27507.dat",
+   "ldraw_origin": "top"
+  },
+  {
+   "id": "25269",
+   "name": "Tile Round 1 x 1 Quarter",
+   "kind": "tile_curved",
+   "L": 1,
+   "W": 1,
+   "h": 1,
+   "studs": false,
+   "shape": "outline",
+   "top": "none",
+   "bottom": "none",
+   "ldraw": "25269.dat",
+   "ldraw_origin": "top"
+  },
+  {
+   "id": "24246",
+   "name": "Tile Round 1 x 1 Half Circle",
+   "kind": "tile_curved",
+   "L": 1,
+   "W": 1,
+   "h": 1,
+   "studs": false,
+   "shape": "outline",
+   "top": "none",
+   "bottom": "none",
+   "ldraw": "24246.dat",
+   "ldraw_origin": "top"
+  },
+  {
+   "id": "67095",
+   "name": "Tile Round 3 x 3",
+   "kind": "tile_curved",
+   "L": 3,
+   "W": 3,
+   "h": 1,
+   "studs": false,
+   "shape": "outline",
+   "top": "none",
+   "bottom": "none",
+   "ldraw": "67095.dat",
+   "ldraw_origin": "top"
+  },
+  {
+   "id": "44302",
+   "name": "Hinge Plate 1 x 2 Locking with 2 Fingers on End",
+   "kind": "hinge",
+   "L": 2,
+   "W": 1,
+   "h": 1,
+   "studs": true,
+   "shape": "hinge",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "44302a.dat",
+   "ldraw_origin": "top",
+   "rebrickable": "44302a"
+  },
+  {
+   "id": "44301",
+   "name": "Hinge Plate 1 x 2 Locking with 1 Finger on End",
+   "kind": "hinge",
+   "L": 2,
+   "W": 1,
+   "h": 1,
+   "studs": true,
+   "shape": "hinge",
+   "top": "all",
+   "bottom": "all",
+   "ldraw": "44301b.dat",
+   "ldraw_origin": "top",
+   "rebrickable": "44301b"
   }
  ],
  "availability": {
@@ -1142,6 +1250,7 @@
   "3010": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1163,6 +1272,7 @@
   "3622": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1184,6 +1294,7 @@
   "3004": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1205,6 +1316,7 @@
   "3005": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1243,6 +1355,7 @@
   "2456": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1285,6 +1398,7 @@
   "3002": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1306,6 +1420,7 @@
   "3003": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1373,6 +1488,7 @@
   "3710": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1394,6 +1510,7 @@
   "3623": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1415,6 +1532,7 @@
   "3023": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1440,6 +1558,7 @@
   "3024": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1465,6 +1584,7 @@
   "3034": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1487,6 +1607,7 @@
   "3795": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1509,6 +1630,7 @@
   "3020": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1531,6 +1653,7 @@
   "3021": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1552,6 +1675,7 @@
   "3022": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1573,6 +1697,7 @@
   "3035": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1593,6 +1718,7 @@
   "3032": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1614,6 +1740,7 @@
   "3031": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1652,6 +1779,7 @@
   "6636": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1673,6 +1801,7 @@
   "2431": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1697,6 +1826,7 @@
   "63864": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1718,6 +1848,7 @@
   "3069b": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1743,6 +1874,7 @@
   "3070b": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1767,6 +1899,7 @@
   "87079": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1788,6 +1921,7 @@
   "26603": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1807,6 +1941,7 @@
   "3068b": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1829,6 +1964,7 @@
   "3958": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1850,6 +1986,7 @@
   "3036": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1870,6 +2007,7 @@
   ],
   "41539": [
    "black",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1887,6 +2025,7 @@
   "3040": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1974,6 +2113,7 @@
   "54200": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -1999,6 +2139,7 @@
   "85984": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -2021,6 +2162,7 @@
   "3665": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -2098,6 +2240,7 @@
   "4073": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -2122,6 +2265,7 @@
   "98138": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -2146,6 +2290,7 @@
   "4032": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -2168,6 +2313,7 @@
   "14769": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -2191,6 +2337,7 @@
   "3062b": [
    "black",
    "blue",
+   "bright_green",
    "dark_blue",
    "dark_bluish_gray",
    "dark_green",
@@ -2214,6 +2361,7 @@
   "3941": [
    "black",
    "blue",
+   "bright_green",
    "dark_blue",
    "dark_bluish_gray",
    "dark_green",
@@ -2237,6 +2385,7 @@
   "87087": [
    "black",
    "blue",
+   "bright_green",
    "bright_light_orange",
    "dark_blue",
    "dark_bluish_gray",
@@ -2285,6 +2434,146 @@
    "red",
    "reddish_brown",
    "sand_green",
+   "tan",
+   "white",
+   "yellow"
+  ],
+  "27925": [
+   "black",
+   "blue",
+   "bright_green",
+   "bright_light_orange",
+   "dark_blue",
+   "dark_bluish_gray",
+   "dark_green",
+   "dark_red",
+   "dark_tan",
+   "green",
+   "light_bluish_gray",
+   "lime",
+   "medium_azure",
+   "orange",
+   "pearl_gold",
+   "red",
+   "reddish_brown",
+   "sand_green",
+   "tan",
+   "white",
+   "yellow"
+  ],
+  "27507": [
+   "black",
+   "blue",
+   "bright_green",
+   "bright_light_orange",
+   "dark_blue",
+   "dark_bluish_gray",
+   "dark_red",
+   "dark_tan",
+   "light_bluish_gray",
+   "lime",
+   "medium_azure",
+   "orange",
+   "pearl_gold",
+   "red",
+   "reddish_brown",
+   "sand_green",
+   "tan",
+   "trans_clear",
+   "white",
+   "yellow"
+  ],
+  "25269": [
+   "black",
+   "blue",
+   "bright_green",
+   "bright_light_orange",
+   "dark_blue",
+   "dark_bluish_gray",
+   "dark_green",
+   "dark_red",
+   "dark_tan",
+   "green",
+   "light_bluish_gray",
+   "lime",
+   "medium_azure",
+   "orange",
+   "pearl_gold",
+   "red",
+   "reddish_brown",
+   "sand_green",
+   "tan",
+   "trans_clear",
+   "trans_red",
+   "trans_yellow",
+   "white",
+   "yellow"
+  ],
+  "24246": [
+   "black",
+   "blue",
+   "bright_green",
+   "bright_light_orange",
+   "dark_blue",
+   "dark_bluish_gray",
+   "dark_green",
+   "dark_red",
+   "green",
+   "light_bluish_gray",
+   "lime",
+   "medium_azure",
+   "orange",
+   "pearl_gold",
+   "red",
+   "reddish_brown",
+   "sand_green",
+   "tan",
+   "trans_red",
+   "white",
+   "yellow"
+  ],
+  "67095": [
+   "black",
+   "bright_light_orange",
+   "dark_blue",
+   "dark_bluish_gray",
+   "dark_red",
+   "dark_tan",
+   "green",
+   "light_bluish_gray",
+   "medium_azure",
+   "pearl_gold",
+   "red",
+   "reddish_brown",
+   "tan",
+   "white",
+   "yellow"
+  ],
+  "44302": [
+   "black",
+   "blue",
+   "bright_green",
+   "dark_blue",
+   "dark_bluish_gray",
+   "dark_red",
+   "green",
+   "light_bluish_gray",
+   "orange",
+   "red",
+   "reddish_brown",
+   "tan",
+   "white",
+   "yellow"
+  ],
+  "44301": [
+   "black",
+   "dark_bluish_gray",
+   "dark_red",
+   "light_bluish_gray",
+   "lime",
+   "orange",
+   "red",
+   "reddish_brown",
    "tan",
    "white",
    "yellow"

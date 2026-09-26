@@ -131,7 +131,8 @@ def _corner_problem(p, t, tris, pid):
 
 def check(model, ldr_text, lib, cat):
     from snapwright.exporters import split_mpd
-    from snapwright.snot import PanelSpec, part_world_box
+    from snapwright.hinge import spec_from_json
+    from snapwright.snot import part_world_box
     parts = model["parts"]
     files = split_mpd(ldr_text)
     main = ldr_text if None in files else next(iter(files.values()))
@@ -143,6 +144,7 @@ def check(model, ldr_text, lib, cat):
     order = [pid for st in model["steps"] if not st.get("sub") for pid in st["parts"]]
     assert len(lines) == len(order), "line count differs from part count"
     problems, tris_all = [], []
+    hinge_axes = {}
     for pid, f in zip(order, lines):
         p = parts[pid]
         t = cat.by_id[p["part"]]
@@ -155,7 +157,11 @@ def check(model, ldr_text, lib, cat):
         lo, hi = _body_box(tris)
         got = {"x": lo[0] / 20, "dx": (hi[0] - lo[0]) / 20, "z": -hi[2] / 20, "dz": (hi[2] - lo[2]) / 20,
                "y": -hi[1] / 8, "h": (hi[1] - lo[1]) / 8}
-        for k in ("x", "z", "y", "dx", "dz", "h"):
+        keys = ("x", "z", "y", "dx", "dz", "h")
+        if t.shape == "hinge":                  # the fingers stick out past the plate: check the plate
+            keys = ("y",)
+            hinge_axes.setdefault(p["hinge"], []).append(("fixed", p, o + R @ np.array([30.0, 2.0, 0.0])))
+        for k in keys:
             if abs(got[k] - p[k]) > 0.15:
                 problems.append(f"part {pid} {p['part']} dir {p.get('dir')}: {k} is {got[k]:.2f} in LDraw, "
                                 f"{p[k]} in the model")
@@ -179,7 +185,7 @@ def check(model, ldr_text, lib, cat):
         by_file[f"{model['meta']['slug']}-{re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')}.ldr"] = sb
     for f in subref:
         sb = by_file[f[14].lower()]
-        spec = PanelSpec.from_json(sb["spec"])
+        spec = spec_from_json(sb["spec"])
         T = np.array([float(a) for a in f[2:5]])
         Pm = np.array([float(a) for a in f[5:14]]).reshape(3, 3)
         order = [pid for st in model["steps"] if st.get("kind") == "subassembly" and st["sub"] == sb["name"]
@@ -192,7 +198,23 @@ def check(model, ldr_text, lib, cat):
             R = Pm @ np.array([float(a) for a in g[5:14]]).reshape(3, 3)
             tris = triangles(lib, g[14], R, o)
             lo, hi = _body_box(tris)
-            wlo, whi = part_world_box(spec, q)          # mm -> LDraw: X = x/0.4, Y = -y/0.4, Z = -z/0.4
+            if getattr(spec, "mount", "") == "hinge":
+                if q.get("kind") == "hinge":
+                    hinge_axes.setdefault(sb["name"], []).append(("moving", q, o + R @ np.array([30.0, 2.0, 0.0])))
+                    col = model["colors"][q["color"]]["hex"]
+                    tris_all += [(tri, col) for tri, _ in tris]
+                    continue
+                if q.get("shape") == "outline":
+                    xs = [v[0] for v in q["outline"]]
+                    zs = [v[1] for v in q["outline"]]
+                    box = (min(xs), q["y"], min(zs), max(xs), q["y"] + q["h"], max(zs))
+                else:
+                    box = (q["x"], q["y"], q["z"], q["x"] + q["dx"], q["y"] + q["h"], q["z"] + q["dz"])
+                cs = np.array([spec.to_world(a * 8.0, b * 3.2, c * 8.0) for a in (box[0], box[3])
+                               for b in (box[1], box[4]) for c in (box[2], box[5])])
+                wlo, whi = cs.min(0), cs.max(0)
+            else:
+                wlo, whi = part_world_box(spec, q)      # mm -> LDraw: X = x/0.4, Y = -y/0.4, Z = -z/0.4
             want_lo = np.array([wlo[0], -whi[1], -whi[2]]) / 0.4
             want_hi = np.array([whi[0], -wlo[1], -wlo[2]]) / 0.4
             if np.abs(lo - want_lo).max() > 2 or np.abs(hi - want_hi).max() > 2:
@@ -200,6 +222,14 @@ def check(model, ldr_text, lib, cat):
                                 f"LDU, expected {want_lo.round(1)}-{want_hi.round(1)}")
             col = model["colors"][q["color"]]["hex"]
             tris_all += [(tri, col) for tri, _ in tris]
+    # each hinge pair turns about one axis: the fixed and the moving plate's finger centres meet
+    for name, hs in hinge_axes.items():
+        fixed = [a for k, _, a in hs if k == "fixed"]
+        moving = [a for k, _, a in hs if k == "moving"]
+        for a in moving:
+            dmin = min(np.linalg.norm(a - b) for b in fixed) if fixed else 1e9
+            if dmin > 2.0:
+                problems.append(f"panel {name}: a moving hinge's axis is {dmin:.1f} LDU from the nearest fixed one")
     return problems, tris_all
 
 

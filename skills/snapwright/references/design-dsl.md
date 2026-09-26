@@ -25,10 +25,48 @@ Coordinates: `x` and `z` in studs, `y` in plates, `y = 0` is the table. Cell cen
 | `hollow(wall=2, cap=3, brace_every=8, brace=2, floor=True)` | remove hidden interior, keep a shell and 2x2 bracing columns; call last |
 | `base(color="dark_bluish_gray", layers=2, margin=1)` | stand the model on a plate base (grid grows, model moves up) |
 | `panel(name, face="+z", at=0, plane=None, top=None, width=4, height=4, depth=2)` | a sideways (SNOT) panel on a face; returns a panel model to paint; with `top` the default `plane` is the surface across the panel's own rows |
+| `hinged_panel(name, toward="+x", angle=45, edge=0, y=0, at=0, width=8, height=8, depth=2, hinges=None, row=0)` | a panel built flat and clicked on at an angle with locking hinges (a tilted face or sign); returns a panel model to paint |
+| `panel.place(part, x, z, color, rot=0)` | a curved tile by hand on a hinged panel's top layer: macaroni 27925 / 27507, quarter 25269, half circle 24246, round 98138 / 14769 / 67095 |
 | `grow_height(h)` | make the grid at least `h` plates tall |
 | `islands()` | voxel groups touching neither the ground nor the rest (must be empty to build) |
 
 `X, Y, Z` passed to lambdas are full numpy grids, so use `np.abs`, `np.hypot`, `&`, `|`.
+
+## Hinged panels and curved tiles
+
+When a face must sit at an angle (a ring's face, a dashboard, a lectern), a stepped surface
+turns every picture into stair steps. Build it flat instead and click it on with locking hinge
+plates (44302 on the model, 44301 under the panel): the picture stays flat, and its top layer
+can carry curved tiles for true circles and arcs.
+
+```python
+face = model.hinged_panel("Face", toward="+x", angle=45, edge=12, y=20, at=2, width=12,
+                          height=12, depth=3, hinges=(4, 11))
+face.box(0, 0, 0, 12, 12, 3, "green")          # two plate layers, then the tile layer
+face.box(2, 2, 1, 10, 10, 2, "black")          # what shows between the curves
+for rot, (x, z) in enumerate([(6, 6), (2, 6), (2, 2), (6, 2)]):
+    face.place("27507", x, z, "black", rot=rot)   # four 4x4 macaroni: a ring r 3-4 about (6, 6)
+face.place("14769", 5, 5, "bright_green")       # a round 2x2 tile in the middle
+```
+
+- `toward`: the way the panel tips down; `angle`: degrees below horizontal, a multiple of 22.5
+  (click hinges lock every 22.5 degrees).
+- The fixed hinge plates sit on plate level `y` in the 2 cells ending at stud line `edge`
+  (along `toward`), at the across positions `hinges` (default: two, a quarter in from each
+  side). The model needs studs right under them. The hinge axis is half a stud beyond `edge`,
+  0.8 mm below the plates' top; the panel's top edge starts half a stud down the slope from it
+  (`row` moves it further up).
+- Panel coordinates are as for sideways panels: `x` across (to the right, seen square-on),
+  `z` rows down the slope, `y` plate layers out. `width`/`at` run along z for x-tipping panels
+  and along x for z-tipping ones.
+- The panel's space, its hinge layer and the knuckles are carved out of the model.
+- `place(part, x, z, color, rot)`: (x, z) is the footprint's min corner after `rot` quarter turns
+  (rot 1 turns +x onto +z). At rot 0 the quarter shapes are centred on the footprint's (x, z)
+  corner: four macaroni at rot 0..3 around one grid point make a full ring. Other tiles on the
+  top layer keep clear of a curved tile's outline; a cell it covers but doesn't grip gets a
+  flat tile one layer down (so no stud hits its rim) in the colour you painted there.
+- Checks: at least 2 hinges, every panel part held through them, no overlapping tiles, nothing
+  of the model in the panel's space. The panel goes on last in the book and the viewer.
 
 ## Patterns
 

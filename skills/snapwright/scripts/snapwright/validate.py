@@ -348,6 +348,11 @@ def report_lines(stats) -> list[tuple[str, str]]:
         bits = [f"{n} {names[k][0] if n == 1 else names[k][1]}" for k, n in sorted(sh.items()) if k in names]
         out.append(("note", "Surface shaping: " + ", ".join(bits) + " smooth the voxel steps"))
     for pn in st.get("panels", []):
+        if pn.get("mount") == "hinge":
+            curved = f", {s_(pn['curved'], 'curved tile')}" if pn.get("curved") else ""
+            out.append(("check", f"Panel {pn['name']}: {pn['parts']} parts built flat{curved}, clicked on at "
+                                 f"{pn['angle']:g} degrees with {s_(pn['hinges'], 'locking hinge')}"))
+            continue
         out.append(("check", f"Panel {pn['name']}: {pn['parts']} parts built flat, clipped onto "
                              f"{s_(pn['studs'], 'side stud')}"))
         if pn.get("offset_mm"):

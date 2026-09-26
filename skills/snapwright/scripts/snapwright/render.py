@@ -68,7 +68,7 @@ def fit(shape, W, H, pad=0.06):
 
 def render_grid(G, colors, studs, highlight=None, ghost=None, size=(900, 900), view=0,
                 framing=None, bg=(255, 255, 255, 0), ss=2, fade=None, geom=None, stud_grid=None,
-                boxes=None, xray=None):
+                boxes=None, xray=None, meshes=None):
     """G: int grid (x, z, y) of ids (-1 empty). colors[id] -> hex, studs[id] -> bool.
     highlight: set of ids drawn with accent outline. fade: set of ids drawn washed out.
     framing: (shape, W, H) to keep scale fixed across steps (use the full model).
@@ -77,7 +77,9 @@ def render_grid(G, colors, studs, highlight=None, ghost=None, size=(900, 900), v
     xray: part ids to outline dashed on top of everything (new parts hidden in this view).
     boxes: extra world boxes (mm, in G's frame) drawn in depth order with the cells, e.g.
     sideways panels: {lo, hi, color, hl, faces: subset of top/fx/fz, same: directions whose
-    neighbour belongs to the same part (no outline there)}."""
+    neighbour belongs to the same part (no outline there)}.
+    meshes: parts drawn as polygons (hinged panels, curved tiles), in G's frame (mm):
+    {c: centre, color, hl, faces: [(points, normal, edges to outline)]}."""
     if geom and view:
         raise ValueError("render shaped parts with render_parts (rotates the parts, not the grid)")
     G = rotate_grid(G, view)
@@ -96,7 +98,8 @@ def render_grid(G, colors, studs, highlight=None, ghost=None, size=(900, 900), v
     fade = fade or set()
 
     boxes = boxes or []
-    if not (G >= 0).any() and not boxes:
+    meshes = meshes or []
+    if not (G >= 0).any() and not boxes and not meshes:
         return img.resize((W, H), Image.LANCZOS)
     # neighbour lookups on a padded grid (-1 = empty), all vectorised
     Gp = np.pad(G, 1, constant_values=-1)
@@ -219,7 +222,22 @@ def render_grid(G, colors, studs, highlight=None, ghost=None, size=(900, 900), v
                 if e not in same:
                     d.line([q[m], q[(m + 1) % 4]], fill=ec, width=ew)
 
-    if not boxes:
+    def draw_mesh(me):
+        base = hex_to_rgb(me["color"])
+        ec = ACCENT if me.get("hl") else _edge_col(base)
+        ew = hw if me.get("hl") else lw
+        faces = sorted(me["faces"], key=lambda f: float(np.mean(np.asarray(f[0]) @ DIR)))
+        for pts, n, edges in faces:
+            if float(np.dot(n, DIR)) <= 1e-6:
+                continue
+            f = 0.62 + 0.18 * max(0.0, n[0]) + 0.5 * max(0.0, n[1])
+            fill = _lift(base, min(0.3, f - 1)) if f > 1 else _shade(base, f)
+            q = [P3(c) for c in pts]
+            d.polygon(q, fill=fill)
+            for e in edges:
+                d.line([q[e], q[(e + 1) % len(q)]], fill=ec, width=ew)
+
+    if not boxes and not meshes:
         for i, row in enumerate(rows):
             draw_cell(i, row)
         _xray(d, G, xray, P3, hw)
@@ -228,12 +246,16 @@ def render_grid(G, colors, studs, highlight=None, ghost=None, size=(900, 900), v
         for b, bx in enumerate(boxes):
             c = (np.array(bx["lo"]) + np.array(bx["hi"])) / 2
             seq.append((float(c @ DIR), 1, b))
+        for b, me in enumerate(meshes):
+            seq.append((float(np.asarray(me["c"]) @ DIR), 2, b))
         seq.sort(key=lambda t: (t[0], t[1], t[2]))
         for _, kind, k in seq:
             if kind == 0:
                 draw_cell(k, rows[k])
-            else:
+            elif kind == 1:
                 draw_box(boxes[k])
+            else:
+                draw_mesh(meshes[k])
         _xray(d, G, xray, P3, hw)
     return img.resize((W, H), Image.LANCZOS)
 
@@ -532,14 +554,188 @@ def panel_boxes(spec, pparts, colors, shape, view=0, hl=False):
     return out
 
 
+# ---- parts as polygons: hinged panels and curved tiles ----------------------------------------
+def _box_faces(lo, hi):
+    """Six faces of a box (mm), each (points, outward normal, edges to outline)."""
+    (x0, y0, z0), (x1, y1, z1) = lo, hi
+    P = lambda a, b, c: (a, b, c)  # noqa: E731
+    return [([P(x0, y1, z0), P(x1, y1, z0), P(x1, y1, z1), P(x0, y1, z1)], (0, 1, 0)),
+            ([P(x0, y0, z0), P(x0, y0, z1), P(x1, y0, z1), P(x1, y0, z0)], (0, -1, 0)),
+            ([P(x1, y0, z0), P(x1, y0, z1), P(x1, y1, z1), P(x1, y1, z0)], (1, 0, 0)),
+            ([P(x0, y0, z0), P(x0, y1, z0), P(x0, y1, z1), P(x0, y0, z1)], (-1, 0, 0)),
+            ([P(x0, y0, z1), P(x0, y1, z1), P(x1, y1, z1), P(x1, y0, z1)], (0, 0, 1)),
+            ([P(x0, y0, z0), P(x1, y0, z0), P(x1, y1, z0), P(x0, y1, z0)], (0, 0, -1))]
+
+
+def _prism_faces(outline, y0, y1):
+    """An outline (x, z mm) extruded from y0 to y1: top, bottom and one side per edge. Side
+    edges are outlined only at sharp corners, so a curve reads as one smooth wall."""
+    pts = [(float(a), float(b)) for a, b in outline]
+    area = sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(pts, pts[1:] + pts[:1]))
+    if area > 0:            # we want the top wound so its normal is +y seen from above
+        pts = pts[::-1]
+    n = len(pts)
+    faces = [([(x, y1, z) for x, z in pts], (0, 1, 0), list(range(n))),
+             ([(x, y0, z) for x, z in pts[::-1]], (0, -1, 0), [])]
+    sharp = []
+    for i in range(n):
+        a, b, c = pts[i - 1], pts[i], pts[(i + 1) % n]
+        u = np.array([b[0] - a[0], b[1] - a[1]])
+        v = np.array([c[0] - b[0], c[1] - b[1]])
+        cosang = float(u @ v / ((np.linalg.norm(u) * np.linalg.norm(v)) or 1))
+        sharp.append(cosang < 0.85)
+    for i in range(n):
+        (ax, az), (bx, bz) = pts[i], pts[(i + 1) % n]
+        ex, ez = bx - ax, bz - az
+        ln = math.hypot(ex, ez) or 1
+        nrm = (ez / ln, 0, -ex / ln)                 # outward for this winding
+        edges = [0, 2] + ([3] if sharp[i] else []) + ([1] if sharp[(i + 1) % n] else [])
+        faces.append(([(ax, y0, az), (bx, y0, bz), (bx, y1, bz), (ax, y1, az)], nrm, edges))
+    return faces
+
+
+def _stud_faces(cx, y, cz, k=12):
+    ring = [(cx + STUD_R * math.cos(2 * math.pi * i / k), cz + STUD_R * math.sin(2 * math.pi * i / k))
+            for i in range(k)]
+    return _prism_faces(ring, y, y + STUD_H)
+
+
+def _clip_rect(pts, x0, z0, x1, z1):
+    """Clip a polygon (x, z) to a rectangle (Sutherland-Hodgman)."""
+    def cut(poly, inside, meet):
+        out = []
+        for i in range(len(poly)):
+            a, b = poly[i - 1], poly[i]
+            if inside(b):
+                if not inside(a):
+                    out.append(meet(a, b))
+                out.append(b)
+            elif inside(a):
+                out.append(meet(a, b))
+        return out
+
+    def at_x(v):
+        return lambda a, b: (v, a[1] + (b[1] - a[1]) * (v - a[0]) / ((b[0] - a[0]) or 1e-12))
+
+    def at_z(v):
+        return lambda a, b: (a[0] + (b[0] - a[0]) * (v - a[1]) / ((b[1] - a[1]) or 1e-12), v)
+    poly = list(pts)
+    for inside, meet in ((lambda p: p[0] >= x0, at_x(x0)), (lambda p: p[0] <= x1, at_x(x1)),
+                         (lambda p: p[1] >= z0, at_z(z0)), (lambda p: p[1] <= z1, at_z(z1))):
+        if not poly:
+            break
+        poly = cut(poly, inside, meet)
+    return poly
+
+
+def part_meshes(parts, colors, to_view, rot, hl=False, highlight=()):
+    """Mesh items for parts in a local frame (grid cells: x, z studs, y plates), one per cell so
+    they sort in depth with each other and with the model's cells: boxes (outlined only where
+    parts meet), curved tiles (shape outline, clipped to each cell) and the studs left showing.
+    to_view maps a local point (mm) into the picture's frame; rot maps a local direction."""
+    from .hinge import tile_cells
+    S, P = STUD_MM, PLATE_MM
+    occ = {}
+    for q in parts:
+        if q.get("shape") == "outline":
+            continue
+        for a in range(q["dx"]):
+            for b in range(q["dz"]):
+                for c in range(q["h"]):
+                    occ[(q["x"] + a, q["z"] + b, q["y"] + c)] = q["id"]
+    covered = set()
+    for q in parts:
+        if q.get("shape") == "outline":
+            cov, _, _ = tile_cells([tuple(v) for v in q["outline"]], q["dx"], q["dz"], q["x"], q["z"])
+            covered |= {(i, j, q["y"]) for i, j in cov}
+    # walls where two curved tiles butt together (the straight ends of quarter rings) are hidden
+    seg_key = lambda a, b: tuple(sorted(((round(a[0], 2), round(a[1], 2)), (round(b[0], 2), round(b[1], 2)))))  # noqa: E731
+    seen = {}
+    for q in parts:
+        if q.get("shape") == "outline":
+            o = [tuple(v) for v in q["outline"]]
+            for k in range(len(o)):
+                key = seg_key(o[k], o[(k + 1) % len(o)])
+                seen[key] = seen.get(key, 0) + 1
+    items = []
+
+    def emit(faces, centre, q):
+        tf = [([tuple(to_view(np.array(p, float))) for p in pts], np.asarray(rot(np.array(n, float))), e)
+              for pts, n, e in faces]
+        items.append({"c": to_view(np.array(centre, float)), "color": colors[q["id"]],
+                      "hl": hl or q["id"] in highlight, "faces": tf})
+
+    for q in parts:
+        if q.get("shape") == "outline":
+            pts = [(a * S, b * S) for a, b in q["outline"]]
+            y0, y1 = q["y"] * P, (q["y"] + q["h"]) * P
+            walls = _prism_faces(pts, y0, y1)
+            tops, sides = walls[0], walls[2:]
+            ring = tops[0]
+            by_cell = {}
+            for f in sides:
+                if seen.get(seg_key((f[0][0][0] / S, f[0][0][2] / S), (f[0][1][0] / S, f[0][1][2] / S)), 0) > 1:
+                    continue
+                mx = (f[0][0][0] + f[0][1][0]) / 2
+                mz = (f[0][0][2] + f[0][1][2]) / 2
+                by_cell.setdefault((int(mx // S), int(mz // S)), []).append(f)
+            for i in range(q["x"], q["x"] + q["dx"]):
+                for j in range(q["z"], q["z"] + q["dz"]):
+                    piece = _clip_rect([(p[0], p[2]) for p in ring], i * S, j * S, (i + 1) * S, (j + 1) * S)
+                    faces = list(by_cell.get((i, j), []))
+                    if len(piece) >= 3:
+                        faces.insert(0, ([(x, y1, z) for x, z in piece], (0, 1, 0), []))
+                    if faces:
+                        emit(faces, ((i + 0.5) * S, (y0 + y1) / 2, (j + 0.5) * S), q)
+            continue
+        for a in range(q["dx"]):
+            for b in range(q["dz"]):
+                for c in range(q["h"]):
+                    X, Z, Y = q["x"] + a, q["z"] + b, q["y"] + c
+                    lo, hi = (X * S, Y * P, Z * S), ((X + 1) * S, (Y + 1) * P, (Z + 1) * S)
+                    faces = []
+                    for pts, n in _box_faces(lo, hi):
+                        if occ.get((X + n[0], Z + n[2], Y + n[1])) is not None:
+                            continue                       # hidden against a neighbour
+                        cx = np.mean(np.asarray(pts), 0)
+                        edges = []
+                        for e in range(4):
+                            m = (np.asarray(pts[e]) + np.asarray(pts[(e + 1) % 4])) / 2 - cx
+                            k = int(np.argmax(np.abs(m / np.array([S, P, S]))))
+                            step = [0, 0, 0]
+                            step[k] = 1 if m[k] > 0 else -1
+                            if occ.get((X + step[0], Z + step[2], Y + step[1])) != q["id"]:
+                                edges.append(e)
+                        faces.append((pts, n, edges))
+                    if q.get("studs") and c == q["h"] - 1 and (X, Z, Y + 1) not in occ \
+                            and (X, Z, Y + 1) not in covered:
+                        stud = _stud_faces((X + 0.5) * S, (Y + 1) * P, (Z + 0.5) * S)
+                        faces += stud
+                    if faces:
+                        emit(faces, ((X + 0.5) * S, (Y + 0.5) * P, (Z + 0.5) * S), q)
+    return items
+
+
+def hinged_meshes(spec, pparts, colors, shape, view=0, hl=False):
+    """Mesh items for a hinged panel on the model, in view `view`'s frame."""
+    R, O = spec.rotation(), spec.origin()
+    # panel grid cells are (x across, y layers, z rows); local mm (x, y, z) maps through R
+    to_view = lambda p: np.array(_rot_point(tuple(O + R @ p), view, shape))  # noqa: E731
+    rot = lambda n: np.array(_rot_vec(tuple(R @ n), view))                      # noqa: E731
+    return part_meshes(pparts, colors, to_view, rot, hl=hl)
+
+
 def render_parts(parts, shape, colors, catalog=None, view=0, panels=None, **kw):
     """Render a list of part dicts (any shapes) from quarter view `view`. colors: {id: hex}.
     panels: attached sideways panels, [{spec, parts, colors: {id: hex}, hl}]."""
+    flat = [p for p in parts if p.get("shape") == "outline"]
+    if flat:                       # curved tiles: polygons, and the studs they cover stay hidden
+        parts = [p for p in parts if p.get("shape") != "outline"]
     rp, rshape = rotate_parts(parts, shape, view)
     G = model_grid(rp, rshape)
     geom = {}
     for p in rp:
-        if p.get("shape", "box") != "box":
+        if p.get("shape", "box") not in ("box", "hinge"):
             q = dict(p)
             if catalog is not None:
                 t = catalog.by_id[p["part"]]
@@ -550,16 +746,38 @@ def render_parts(parts, shape, colors, catalog=None, view=0, panels=None, **kw):
     framing = kw.pop("framing", None)
     if framing is not None and view % 2:
         framing = (framing[1], framing[0], framing[2])
-    boxes = []
+    boxes, meshes = [], []
     for pn in panels or []:
-        boxes += panel_boxes(pn["spec"], pn["parts"], pn["colors"], shape, view, pn.get("hl", False))
+        if getattr(pn["spec"], "mount", "") == "hinge":
+            meshes += hinged_meshes(pn["spec"], pn["parts"], pn["colors"], shape, view, pn.get("hl", False))
+        else:
+            boxes += panel_boxes(pn["spec"], pn["parts"], pn["colors"], shape, view, pn.get("hl", False))
+    sg = stud_grid_of(rp, rshape)
+    if flat:
+        from .hinge import tile_cells
+        to_view = lambda p: np.array(_rot_point(tuple(p), view, shape))  # noqa: E731
+        rot = lambda n: np.array(_rot_vec(tuple(n), view))                # noqa: E731
+        hl_ids = kw.get("highlight") or set()
+        meshes += part_meshes(flat, colors, to_view, rot, highlight=hl_ids)
+        NX, NZ = shape[0], shape[1]
+        for q in flat:
+            cov, _, _ = tile_cells([tuple(v) for v in q["outline"]], q["dx"], q["dz"], q["x"], q["z"])
+            for (i, j) in cov:
+                if 0 <= i < NX and 0 <= j < NZ and q["y"] >= 1:
+                    a, b = _rot_cell(i, j, view, shape)
+                    sg[a, b, q["y"] - 1] = False
     hl = kw.get("highlight") or set()
     xray = None
     if hl:                                   # new parts this view can't show get an x-ray outline
         seen = visible_samples(G, 0)
         xray = {pid for pid in hl if seen.get(pid, 0) < 2}
-    return render_grid(G, colors, {}, geom=geom, stud_grid=stud_grid_of(rp, rshape),
-                       framing=framing, view=0, boxes=boxes, xray=xray, **kw)
+    return render_grid(G, colors, {}, geom=geom, stud_grid=sg,
+                       framing=framing, view=0, boxes=boxes, xray=xray, meshes=meshes, **kw)
+
+
+def _rot_cell(x, z, k, shape):
+    NX, NZ = shape[0], shape[1]
+    return [(x, z), (z, NX - 1 - x), (NX - 1 - x, NZ - 1 - z), (NZ - 1 - z, x)][k % 4]
 
 
 def visible_samples(G, view=0, spp=4):
@@ -637,9 +855,15 @@ def part_icon(ptype, color_hex, size=(140, 110)):
              "shape": ptype.shape, "dir": dir_, "studs": ptype.studs,
              "top_cells": [list(cells[c]) for c in sorted(ptype.local_cells("top"))],
              "bottom_cells": [list(cells[c]) for c in sorted(ptype.local_cells("bottom"))]}
+    elif ptype.shape == "outline":                 # curved tiles: drawn from their outline
+        from .hinge import placed_geometry
+        pts, org, dx, dz = placed_geometry(ptype.id, 0, 0, 0)
+        p = {"id": 0, "part": ptype.id, "x": 0, "z": 0, "y": 0, "dx": dx, "dz": dz, "h": ptype.h,
+             "shape": "outline", "outline": [list(v) for v in pts], "studs": False}
+        return render_parts([p], (dx, dz, ptype.h), {0: color_hex}, size=size, ss=3)
     else:
         p = {"id": 0, "part": ptype.id, "x": 0, "z": 0, "y": 0, "dx": ptype.L, "dz": ptype.W,
-             "h": ptype.h, "shape": ptype.shape, "studs": ptype.studs}
+             "h": ptype.h, "shape": "box" if ptype.shape == "hinge" else ptype.shape, "studs": ptype.studs}
     geom_p = dict(p, L=ptype.L, lip=ptype.lip)
     G = model_grid([p], (p["dx"], p["dz"], p["h"]))
     geom = {0: geom_p} if ptype.shape != "box" else None

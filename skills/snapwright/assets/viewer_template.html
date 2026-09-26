@@ -191,7 +191,37 @@ for (const [k, g] of groups) {
 }
 // sideways panels: built flat, then slid onto the side studs at their attach step
 const panelParts = [];
-for (const pn of (M.panels || [])) for (const b of pn.parts) panelParts.push({ pn, b });
+for (const pn of (M.panels || [])) if (pn.mount !== 'hinge') for (const b of pn.parts) panelParts.push({ pn, b });
+// hinged panels: built flat, clicked on at an angle; real geometry in the panel's own frame
+// (x across, y out, z down the slope), curved tiles extruded from their outlines
+const hinged = [];
+const hmat = new THREE.MeshStandardMaterial({ roughness: .45, metalness: 0, side: THREE.DoubleSide });
+for (const pn of (M.panels || [])) {
+  if (pn.mount !== 'hinge') continue;
+  const g = new THREE.Group(); g.matrixAutoUpdate = false; const meshes = [];
+  const R = pn.R, base = new THREE.Matrix4().set(R[0], R[1], R[2], pn.O[0], R[3], R[4], R[5], pn.O[1],
+                                                  R[6], R[7], R[8], pn.O[2], 0, 0, 0, 1);
+  for (const b of pn.parts) {
+    let geo;
+    if (b.outline) {
+      const sh = new THREE.Shape(); sh.moveTo(b.outline[0][0], b.outline[0][1]);
+      for (const [a, c] of b.outline.slice(1)) sh.lineTo(a, c);
+      geo = new THREE.ExtrudeGeometry(sh, { depth: b.y1 - b.y0 - 0.12, bevelEnabled: false, curveSegments: 1 });
+      geo.applyMatrix4(new THREE.Matrix4().set(1, 0, 0, 0, 0, 0, 1, b.y0, 0, 1, 0, 0, 0, 0, 0, 1));
+    } else {
+      geo = new THREE.BoxGeometry(b.hi[0] - b.lo[0] - 0.12, b.hi[1] - b.lo[1] - 0.12, b.hi[2] - b.lo[2] - 0.12);
+      geo.translate((b.lo[0] + b.hi[0]) / 2, (b.lo[1] + b.hi[1]) / 2, (b.lo[2] + b.hi[2]) / 2);
+    }
+    const m = new THREE.Mesh(geo, hmat.clone()); m.material.color.set(M.colors[b.color].hex);
+    g.add(m); meshes.push(m);
+  }
+  for (const [x, y, z, c] of pn.studs) {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 1.8, 16), hmat.clone());
+    m.material.color.set(M.colors[c].hex); m.position.set(x, y + 0.9, z); g.add(m); meshes.push(m);
+  }
+  g.visible = false; scene.add(g);
+  hinged.push({ pn, g, base, meshes });
+}
 const panelMesh = new THREE.InstancedMesh(boxGeo, mat, Math.max(1, panelParts.length));
 panelParts.forEach(({ b }, k) => panelMesh.setColorAt(k, new THREE.Color(M.colors[b.color].hex)));
 panelMesh.count = 0; scene.add(panelMesh);
@@ -209,6 +239,9 @@ function highlight(s) {
       mesh.setColorAt(n, on ? c.lerp(ACC, 0.45) : c); mesh.instanceColor.needsUpdate = true; }
     for (const [mesh, n, c, st] of panelSlots) if (st === step) {
       mesh.setColorAt(n, on ? c.clone().lerp(ACC, 0.45) : c); mesh.instanceColor.needsUpdate = true; }
+    for (const h of hinged) if (h.pn.step === step) for (const m of h.meshes) {
+      m.userData.base ||= m.material.color.clone();
+      m.material.color.copy(on ? m.userData.base.clone().lerp(ACC, 0.45) : m.userData.base); }
   };
   paint(hlStep, false); paint(s, true); hlStep = s;
 }
@@ -257,6 +290,14 @@ function place(t) {                 // t = build time in steps (fractional)
     panelMesh.setMatrixAt(np++, m4.compose(v, q, sc));
   }
   panelMesh.count = np; panelMesh.instanceMatrix.needsUpdate = true;
+  for (const h of hinged) {
+    const local = t - (h.pn.step - 1);
+    h.g.visible = local > 0; if (!h.g.visible) continue;
+    const slide = Math.max(0, 1 - local * 1.2) ** 2 * 80 + (exploded ? 60 : 0);   // along the face normal
+    h.g.matrix.copy(h.base); h.g.matrix.elements[12] += h.pn.n[0] * slide;
+    h.g.matrix.elements[13] += h.pn.n[1] * slide; h.g.matrix.elements[14] += h.pn.n[2] * slide;
+    h.g.matrixWorldNeedsUpdate = true;
+  }
   let ns = 0;
   q.identity();
   for (const [i, a, b] of studList) { const p = parts[i];
