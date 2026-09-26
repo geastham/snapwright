@@ -203,7 +203,7 @@ class Model:
         face: "+z", "-z", "+x" or "-x" (the way the panel's studs point).
         at: first stud along the face (x for z faces, z for x faces).
         plane: the face plane as a stud boundary (default: the model's surface there).
-        top: plate line of the panel's top edge (default: the highest line that fits).
+        top: plate line of the panel's top edge (default: the top of the wall behind it).
         width, height: studs across and down (even heights keep both edges on plate lines).
         depth: plate layers (2 = a plate layer plus a tile layer).
         The panel's space is carved out of this model. Returns the panel."""
@@ -211,9 +211,16 @@ class Model:
         f = FACES[face]
         if plane is None:
             plane = self._surface_plane(f, at, width)
-        if top is None:
-            top = self.NY
-        spec = PanelSpec(name, f, int(at), int(plane), int(top), int(width), int(height), int(depth))
+        spec = PanelSpec(name, f, int(at), int(plane), int(top if top is not None else self.NY),
+                         int(width), int(height), int(depth))
+        if top is None:   # the top of the wall right behind the panel (lowest across its columns)
+            tops = []
+            for i in range(spec.W):
+                x, z = spec.behind(i)
+                if 0 <= x < self.NX and 0 <= z < self.NZ:
+                    col = np.nonzero(self.V[x, z] > 0)[0]
+                    tops.append(int(col.max()) + 1 if len(col) else 0)
+            spec.top = min(tops) if tops else self.NY
         x0, x1, z0, z1, y0, y1 = spec.main_region()
         if min(x0, z0, y0) < 0 or x1 > self.NX or z1 > self.NZ or y1 > self.NY:
             raise ValueError(f"panel {name!r} doesn't fit in the model grid: cells x {x0}-{x1}, "

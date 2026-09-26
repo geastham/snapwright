@@ -113,3 +113,59 @@ def test_ldraw_mpd_round_trip_and_viewer_data(cat, tmp_path):
     pipeline.write_viewer(model, str(out), cat)
     html = out.read_text()
     assert '"panels":[{"name":"Face"' in html and '"subassemblies"' not in html
+
+
+@pytest.mark.parametrize("face", ["+z", "-z", "+x", "-x"])
+def test_panels_on_every_face(face):
+    m = Model(12, 12, 36, title="Cube")
+    m.box(1, 1, 0, 11, 11, 30, "tan")
+    pn = m.panel("Sign", face=face, at=3, width=6, height=6)
+    assert pn.spec.top == 30                                  # default: top of the wall behind
+    pn.box(0, 0, 0, 6, 6, 1, "black")
+    pn.box(0, 0, 1, 6, 6, 2, "yellow")
+    pn.box(1, 2, 1, 5, 4, 2, "red")
+    model, built = solve(m, seeds=1)
+    st = model["stats"]
+    assert st["passed"], st["failures"]
+    check_model(model, m.V, built, m.palette)
+    sub = model["subassemblies"][0]
+    assert sub["anchor_studs"] >= 12 and sub["held"] == len(sub["parts"])
+
+
+def test_robot_example_builds(cat):
+    import os
+    from conftest import ROOT
+    from snapwright.pipeline import load_design
+    m = load_design(os.path.join(ROOT, "examples", "robot", "design.py"), cat)
+    model, built = solve(m, catalog=cat, seeds=2)
+    st = model["stats"]
+    assert st["passed"], st["failures"]
+    assert [sb["name"] for sb in model["subassemblies"]] == ["Chest", "Face"]
+    assert all(sb["held"] == len(sb["parts"]) and sb["anchor_studs"] >= 20 for sb in model["subassemblies"])
+    check_model(model, m.V, built, m.palette)
+
+
+@pytest.mark.parametrize("seed", range(8))
+def test_random_panels_are_held_or_fail_honestly(seed):
+    rng = np.random.default_rng(seed)
+    w, d = int(rng.integers(10, 16)), int(rng.integers(10, 16))
+    m = Model(w, d, 40)
+    m.box(1, 1, 0, w - 1, d - 1, int(rng.integers(24, 38)), "light_bluish_gray")
+    if rng.random() < 0.3:                               # sometimes hollow behind the face
+        m.hollow(wall=int(rng.integers(1, 3)), brace_every=0)
+    face = str(rng.choice(["+z", "-z", "+x", "-x"]))
+    span = (w if face in ("+z", "-z") else d) - 2
+    width = int(rng.integers(2, span))
+    height = int(rng.choice([2, 4, 6]))
+    pn = m.panel("P", face=face, at=int(rng.integers(1, span - width + 2)), width=width, height=height)
+    pn.box(0, 0, 0, width, height, 1, "black")
+    pn.where(lambda X, Y, Z: (Y >= 1) & ((X + Z) % 3 < 1.5), "yellow")
+    pn.where(lambda X, Y, Z: (Y >= 1) & ((X + Z) % 3 >= 1.5), "red")
+    model, built = solve(m, seeds=1)
+    check_model(model, m.V, built, m.palette)
+    sub = model["subassemblies"][0]
+    st = model["stats"]
+    if sub["held"] < len(sub["parts"]) or sub["anchor_studs"] < 2:
+        assert not st["passed"] and sub["failures"]
+    else:
+        assert not sub["failures"]

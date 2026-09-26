@@ -47,9 +47,21 @@ rock base, lantern mullions and roof match the Snapwright renders.
 
 ![lighthouse in LeoCAD](ldraw-check/lighthouse-leocad.png) ![shaped model in LeoCAD](ldraw-check/shaped-leocad.png)
 
+## Sideways panels (M3)
+
+With panels the export is a multi-part LDraw file: each panel is a submodel with its own
+steps, built flat, and the model places it at its attach step. `examples/robot` (441 parts,
+two panels on 54 side studs) matches the official geometry part for part, and LeoCAD 26.09
+shows both panels upright on the front (the file keeps the .ldr name; LeoCAD reads the
+submodels from it):
+
+![robot in LeoCAD](ldraw-check/robot-leocad.png)
+
 ## Orientation facts used by the exporter
 
 From the official part files: box parts have their origin at the top centre with the long
 axis along X. Brick-height slopes (3040b, 3039, 4286, 3298) and inverted slopes (3665a, 3660)
 have their origin at the top centre of the studded back row and run towards -Z. The 2/3-height
 30 degree slopes (54200, 85984) have their origin at the bottom centre. Rounds are centred.
+Side-stud bricks (87087, 11211, 30414) have their origin at the top centre and their side
+studs 10 LDU below the top on the -Z face, pointing -Z.

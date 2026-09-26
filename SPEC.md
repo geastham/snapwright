@@ -47,7 +47,10 @@ regenerable from `model.json` alone.
   `examples/keep` 5,068 parts in ~106 s; 85 tests (unit, fixtures, property, golden) in ~40 s
 - After M2 (v0.3): catalog 0.2 with per-cell connectors; slopes, inverted slopes and rounds by
   surface shaping; `Model.hollow()` with bracing; automatic base; LDraw export checked against
-  the official library geometry (LeoCAD screenshot pending); schema snapwright.model/0.3
+  the official library geometry and LeoCAD; schema snapwright.model/0.3
+- After M3 (v0.4): sideways panels (SNOT) built flat and clipped onto side-stud bricks, checked
+  per panel, sub-build insets and attach steps in the book, attach animation in the viewer,
+  MPD LDraw export; `examples/robot`; schema snapwright.model/0.4
 
 ## 5. Milestones and acceptance criteria
 

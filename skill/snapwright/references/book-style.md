@@ -10,6 +10,8 @@ Goal: someone who has never built this can follow it without guessing.
 - The camera changes between plate levels when another quarter view shows clearly more of
   the new parts, or for a single step when two or more of its new parts would be hidden; a
   turn marker shows the rotation.
+- A sideways panel is built in a tinted, labelled "sub-build" inset (drawn flat, in its own
+  frame), then an attach step shows it on the model, highlighted, with one line of text.
 - Cover: finished model, title, parts / height / steps / lots, designer, disclaimer.
 - Parts inventory grouped by colour, then the steps, then a finished-model page with four
   views and the software checks, marked "checked in software": every auto-repair is listed

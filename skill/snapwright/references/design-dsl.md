@@ -22,6 +22,7 @@ Coordinates: `x` and `z` in studs, `y` in plates, `y = 0` is the table. Cell cen
 | `mosaic(path, colors=None, mode="flat"|"upright", base_color=, depth=2, dither=False, base_layers=2)` | photo to mosaic; flat = `base_layers` plate layers + a picture layer (grid grows to fit) |
 | `hollow(wall=2, cap=3, brace_every=8, brace=2, floor=True)` | remove hidden interior, keep a shell and 2x2 bracing columns; call last |
 | `base(color="dark_bluish_gray", layers=2, margin=1)` | stand the model on a plate base (grid grows, model moves up) |
+| `panel(name, face="+z", at=0, plane=None, top=None, width=4, height=4, depth=2)` | a sideways (SNOT) panel on a face; returns a panel model to paint |
 | `grow_height(h)` | make the grid at least `h` plates tall |
 | `islands()` | voxel groups touching neither the ground nor the rest (must be empty to build) |
 
@@ -47,3 +48,21 @@ Organic noise: `model.paint(lambda X, Y, Z: np.sin(X * 1.7) + np.cos(Z * 1.3) > 
   tapers (it smooths the surface first, so near-vertical walls stay square), inverted slopes
   under 1-stud overhang lips, round bricks/plates on thin 1x1 and 2x2 columns, and round
   tiles on the stair-step corners of curves. Design the voxel shape; shaping follows it.
+
+## Sideways panels
+
+`model.panel(...)` makes a small model that is built flat and tipped onto a face of the main
+model, studs pointing out, clipped onto side-stud bricks the build places right behind it.
+
+- `face`: "+z", "-z", "+x" or "-x", the way the panel faces. Seen from in front of that face,
+  panel `x` runs left to right, panel `z` counts rows DOWN from the top edge, and panel `y`
+  counts plate layers outward (layer 0 against the model, the last layer is the surface).
+- `at`: first stud along the face; `width`, `height` in studs; `depth` in plates (2 = a
+  backing plate layer plus a tile layer).
+- `plane`: the face plane as a stud boundary (default: the model's surface there); `top`:
+  plate line of the panel's top edge (default: the top of the wall behind it).
+- The panel's space is carved out of the model. The model must be solid right behind the
+  panel: side-stud bricks go on anchor rows every 2 studs (5 plates = 2 studs).
+- Paint it with the usual calls in panel coordinates; `panel.mosaic(img)` reads upright.
+- A 2-plate panel sits 1.6 mm inside the surrounding surface (reported). Even heights keep
+  both edges on plate lines. Panels use bricks, plates and tiles only (no surface shaping).
