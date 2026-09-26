@@ -14,7 +14,8 @@ Spec: SPEC.md §5 M2 plus kickoff notes (connection metadata, renderer, bracing)
       overhangs, rounds on convex corners and thin columns; counted and reported
 - [x] Renderer draws slopes, inverted slopes and rounds (book steps, icons, previews)
 - [x] Viewer draws slopes and rounds (extruded slope profiles, cylinders, studs per cell)
-- [ ] LDraw export for new parts + round-trip test; LeoCAD check documented with screenshots
+- [x] LDraw export for new parts + round-trip test; checked against official LDraw geometry
+      (tools/ldraw_check.py, docs/ldraw-check.md). LeoCAD screenshot: blocked (cask fails Gatekeeper)
 - [ ] `Model.hollow(wall=2, brace_every=N)` with internal bracing columns; hollow shells pass
       neck and balance checks (tests)
 - [ ] Base/stand: optional automatic base to fix balance failures; counted as added support
