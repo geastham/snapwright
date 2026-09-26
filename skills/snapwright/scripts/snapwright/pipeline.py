@@ -166,9 +166,11 @@ def build(design, out, seeds=8, finish="tiles", audience="adult", max_per_step=N
         json.dump(model, f)
     log(f"[5/6] exports -> {out}")
     _write(out, f"{slug}.ldr", exporters.to_ldraw(model, cat))
-    _write(out, f"{slug}-bricklink.xml", exporters.to_bricklink_xml(parts, cat))
-    _write(out, f"{slug}-rebrickable.csv", exporters.to_rebrickable_csv(parts, cat))
-    _write(out, f"{slug}-parts.csv", exporters.to_csv(parts, cat))
+    # the order lists cover everything, panels (built separately) included
+    everything = parts + [q for sb in model.get("subassemblies", []) for q in sb["parts"]]
+    _write(out, f"{slug}-bricklink.xml", exporters.to_bricklink_xml(everything, cat))
+    _write(out, f"{slug}-rebrickable.csv", exporters.to_rebrickable_csv(everything, cat))
+    _write(out, f"{slug}-parts.csv", exporters.to_csv(everything, cat))
     np.savez_compressed(os.path.join(out, "voxels.npz"), V=m.V, V_built=V_final, palette=np.array(m.palette))
     tm.lap("exports")
     if viewer:

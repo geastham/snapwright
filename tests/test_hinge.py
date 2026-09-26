@@ -139,3 +139,19 @@ def test_lantern_exports_render_and_viewer(cat, tmp_path):
     pipeline.write_viewer(model, str(out), cat)
     html = out.read_text()
     assert '"mount":"hinge"' in html and '"outline":' in html
+
+
+def test_order_lists_include_the_panel(cat, tmp_path):
+    import csv
+    import re
+    from snapwright import pipeline
+    design = tmp_path / "design.py"
+    design.write_text(LANTERN)
+    model = pipeline.build(str(design), str(tmp_path / "out"), catalog=cat, seeds=1, book=False,
+                           viewer=False, log=lambda *a: None)
+    total = model["stats"]["parts"]
+    rows = list(csv.DictReader(open(tmp_path / "out" / "hinge-test-parts.csv")))
+    assert sum(int(r["Qty"]) for r in rows) == total
+    assert any(r["Part ID"] == "27507" for r in rows)
+    xml = (tmp_path / "out" / "hinge-test-bricklink.xml").read_text()
+    assert sum(int(q) for q in re.findall(r"<MINQTY>(\d+)</MINQTY>", xml)) == total
