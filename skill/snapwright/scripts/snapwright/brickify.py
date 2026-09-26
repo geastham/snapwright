@@ -78,13 +78,16 @@ class Packer:
                  finish: str = "tiles", use_bricks: bool = True, max_len: int = 8,
                  interior: int | None = None, no_brick: np.ndarray | None = None,
                  no_tile: np.ndarray | None = None, priority: np.ndarray | None = None,
-                 shapes: bool = True, anchors: list | None = None):
+                 shapes: bool = True, anchors: list | None = None, live_from: int = 1):
         self.V = V
         self.no_tile = no_tile if no_tile is not None else np.zeros(V.shape, dtype=bool)
         self.no_brick = no_brick if no_brick is not None else np.zeros(V.shape, dtype=bool)
         # stranded-group label per cell (0 = none): packed first, at any offset, and must
         # join a cell outside their own group
         self.priority = priority if priority is not None else np.zeros(V.shape, dtype=np.int32)
+        # labels below live_from belong to groups an earlier round already joined to the main
+        # structure (kept so that area is still packed first); they count as main
+        self.live_from = live_from
         self.rescued = 0
         self.shapes = shapes
         self.anchors = anchors or []
@@ -111,6 +114,7 @@ class Packer:
             vals, cnt = np.unique(V[np.isin(V, opaque)], return_counts=True)
             interior = int(vals[np.argmax(cnt)]) if len(vals) else 1
         self.interior = interior
+        self.allow = allowed_colours(catalog, palette, interior)
         top = np.zeros(V.shape, dtype=bool)
         top[:, :, :-1] = (V[:, :, :-1] > 0) & (V[:, :, 1:] == 0)
         top[:, :, -1] = V[:, :, -1] > 0
@@ -196,7 +200,7 @@ class Packer:
                         continue
                     cells = [(x, z) for _, x, z in run]
                     vals = {int(self.req[x, z, yy]) for x, z in cells for yy in range(y, y + 3)} - {0}
-                    if len(vals) > 1:
+                    if len(vals) > 1 or not self._ok(t, next(iter(vals), 0)):
                         continue
                     xs, zs = [c[0] for c in cells], [c[1] for c in cells]
                     x0, z0 = min(xs), min(zs)
@@ -215,13 +219,20 @@ class Packer:
                 else:
                     k += 1
 
+    def _ok(self, t, cidx):
+        """May part type t come in palette colour cidx (0 = the interior colour)?"""
+        return self.allow is None or bool(self.allow[t.id][cidx])
+
     def _shape_surface(self):
         """Slopes, inverted slopes and round parts claim their cells before normal packing
-        (see shaping.py). Cells the repair loop is working on are left alone."""
+        (see shaping.py). Cells the repair loop is working on are left alone, and so are
+        shapes that aren't made in the colour needed (normal packing covers those cells)."""
         from .shaping import find_shapes
         blocked = self.no_brick | (self.priority > 0)
         for s in find_shapes(self.V, self.req, self.cat, self.finish, blocked, visible=self.vis):
             t = s["t"]
+            if not self._ok(t, s["color"] or 0):
+                continue
             pid = len(self.parts)
             x, z, y, dx, dz, h = s["x"], s["z"], s["y"], s["dx"], s["dz"], s["h"]
             self.owner[x:x + dx, z:z + dz, y:y + h] = pid
@@ -232,9 +243,32 @@ class Packer:
                                "x": x, "z": z, "y": y, "dx": dx, "dz": dz, "h": h, "rot": s["dir"],
                                "studs": bool(s["top_cells"]), "shape": t.shape, "dir": s["dir"],
                                "top_cells": s["top_cells"], "bottom_cells": s["bottom_cells"]})
+            self._uncover(t.shape, s["dir"], x, z, y, dx, dz, h)
+
+    def _uncover(self, shape, dir_, x, z, y, dx, dz, h):
+        """A shaped part doesn't fill its whole box, so some neighbours that counted as hidden
+        now show: the cells under a round part (its footprint's corners are open) and the
+        cells beside a slope's triangular ends. They keep their design colour instead of
+        taking the hidden-filler colour."""
+        NX, NZ, NY = self.shape
+        cells = []
+        if shape == "round" and y > 0:
+            cells.append((slice(x, x + dx), slice(z, z + dz), y - 1))
+        elif shape in ("slope", "slope_inv"):
+            ys = slice(y, y + h)
+            if dir_ in (0, 2):          # slopes along x: triangles face -z and +z
+                cells += [(slice(x, x + dx), z - 1, ys), (slice(x, x + dx), z + dz, ys)]
+            else:
+                cells += [(x - 1, slice(z, z + dz), ys), (x + dx, slice(z, z + dz), ys)]
+        for cx, cz, cy in cells:
+            if isinstance(cx, int) and not 0 <= cx < NX or isinstance(cz, int) and not 0 <= cz < NZ:
+                continue
+            sl = (cx, cz, cy)
+            free = (self.V[sl] > 0) & (self.owner[sl] < 0)
+            self.req[sl] = np.where(free, self.V[sl], self.req[sl])
 
     # ---- packing ----------------------------------------------------------
-    def _score(self, x, z, dx, dz, y, pref):
+    def _score(self, x, z, dx, dz, y, pref, h=1):
         score = float(dx * dz)
         if y > 0:
             below = self.owner[x:x + dx, z:z + dz, y - 1]
@@ -245,7 +279,14 @@ class Packer:
             elif len(ids) == 1:
                 p = self.parts[ids[0]]
                 if p["x"] == x and p["z"] == z and p["dx"] == dx and p["dz"] == dz:
-                    score -= 3.0      # exact stack = seam straight through
+                    # exact stack: seams straight through on every side, it bonds nothing new.
+                    # Scaled with area so it loses to any real alternative (thin features such
+                    # as fins otherwise stack into columns that never join)
+                    score -= 3.0 + dx * dz
+            # long seams matter in stacked plates (flat bases, floors); brick walls already
+            # bond through the bridging bonus
+            if h == 1 and all(self.parts[i]["h"] == 1 for i in ids):
+                score -= SEAM * _seam_run(self.owner[:, :, y - 1], x, z, dx, dz)
         if (dx > dz and pref == 0) or (dz > dx and pref == 1):
             score += 0.6
         return score + self.rng.random() * self.jitter
@@ -291,7 +332,8 @@ class Packer:
                 x, z = min(left)
                 for t, rot, dx, dz in shapes:
                     rect = {(x + i, z + j) for i in range(dx) for j in range(dz)}
-                    if rect <= left and colour(rect) is not None and any(under[c] for c in rect):
+                    if rect <= left and colour(rect) is not None and self._ok(t, colour(rect)) \
+                            and any(under[c] for c in rect):
                         out.append((t, rot, x, z, dx, dz, colour(rect)))
                         left -= rect
                         break
@@ -320,7 +362,10 @@ class Packer:
                             ax, az = x - ox, z - oz
                             rect = {(ax + i, az + j) for i in range(dx) for j in range(dz)}
                             if (a, b) not in rect or not rect <= pool or colour(rect) is None \
-                                    or not any(under[c] for c in rect):
+                                    or not self._ok(t, colour(rect)) or not any(under[c] for c in rect):
+                                continue
+                            # it must join the lone cell to another group, not just its own
+                            if all(self.priority[c[0], c[1], y] == self.priority[x, z, y] for c in rect):
                                 continue
                             rest = cover(pool - rect)
                             if rest is None:
@@ -374,22 +419,35 @@ class Packer:
                             dist[a, b] = dist[x, z] + 1
                             nxt.append((a, b))
                 frontier = nxt
-            fm = FitMaps(shapes, free, col, under)
+            fm = FitMaps(shapes, free, col, under, allow=self.allow)
             # a supported priority cell only counts as covered by a part that joins it to a
             # neighbour; a lone 1x1 there is what stranded it (left to phase 2 as a fallback)
             prio_layer = self.priority[:, :, y]
 
             def joining(x, z):
                 """Placements that join a supported priority cell to something outside its
-                own stranded group (the only kind that fixes it)."""
+                own stranded group (the only kind that fixes it): into the main structure if
+                it can, else into a neighbouring stranded group (two groups side by side
+                would otherwise only ever join each other)."""
                 g = prio_layer[x, z]
-                return [o for o in fm.options(x, z, 2)
-                        if (prio_layer[o[1]:o[1] + o[3], o[2]:o[2] + o[4]] != g).any()]
+                if g < self.live_from:          # already joined in an earlier round
+                    return fm.options(x, z, 2)
+                out, main = [], []
+                for o in fm.options(x, z, 2):
+                    win = prio_layer[o[1]:o[1] + o[3], o[2]:o[2] + o[4]]
+                    other = win != g
+                    if other.any():
+                        out.append(o)
+                        if (other & (win < self.live_from)).any():
+                            main.append(o)
+                return main or out
 
             def options(x, z):
                 if not under[x, z]:
                     return fm.options(x, z)
-                return joining(x, z) or fm.options(x, z, 2)
+                # no way to join from here: anything goes, even a 1x1, so the lookahead can
+                # keep a neighbour's only join free
+                return joining(x, z) or fm.options(x, z, 2 if self.priority[x, z, y] < self.live_from else 1)
 
             def strands(a, b, ax, az, dx, dz):
                 """Would taking rectangle (ax, az, dx, dz) leave cell (a, b) no way to be
@@ -406,7 +464,7 @@ class Packer:
             for x, z in hang:
                 if not free[x, z]:
                     continue
-                cands = sorted(((self._score(c[1], c[2], c[3], c[4], y, pref), i, c)
+                cands = sorted(((self._score(c[1], c[2], c[3], c[4], y, pref, h), i, c)
                                 for i, c in enumerate(options(x, z))), reverse=True)[:48]
                 best, bs = None, -1e9
                 for sc, _, cand in cands:
@@ -427,7 +485,7 @@ class Packer:
                     self._place(t, ax, az, y, dx, dz, h, c, free, rot)
                     fm.occupy(ax, az, dx, dz)
         # phase 2: scan order, rectangle anchored at the first free cell
-        fm = FitMaps(shapes, free, col)
+        fm = FitMaps(shapes, free, col, allow=self.allow)
         key = (lambda c: (c[0], c[1])) if pref == 1 else (lambda c: (c[1], c[0]))
         for x, z in sorted(map(tuple, np.argwhere(free)), key=key):
             if not free[x, z]:
@@ -436,7 +494,7 @@ class Packer:
             for k, (t, rot, dx, dz) in enumerate(shapes):
                 if not fm.ok[k][x, z]:
                     continue
-                s = self._score(x, z, dx, dz, y, pref)
+                s = self._score(x, z, dx, dz, y, pref, h)
                 if s > bs:
                     best, bs = (t, dx, dz, int(fm.color[k][x, z]), rot), s
             if best is None:
@@ -444,6 +502,49 @@ class Packer:
             t, dx, dz, c, rot = best
             self._place(t, x, z, y, dx, dz, h, c, free, rot)
             fm.occupy(x, z, dx, dz)
+
+
+SEAM, SEAM_MIN = 3.0, 6   # score per stud of a whole side (>= SEAM_MIN long) on a joint below
+
+
+def _seam_run(B, x, z, dx, dz):
+    """Studs of the rectangle's sides that lie, whole, on a joint between two parts in the
+    layer below (owner grid B): the seam then runs straight up through both layers. A short
+    or partly offset side is normal running bond; long whole-side seams are what split a
+    flat base into strips. Edges on the model's outline don't count."""
+    NX, NZ = B.shape
+    n = 0
+    if dz >= SEAM_MIN:
+        for a in ((x - 1, x), (x + dx - 1, x + dx)):
+            if 0 <= a[0] and a[1] < NX:
+                l, r = B[a[0], z:z + dz], B[a[1], z:z + dz]
+                if ((l >= 0) & (r >= 0) & (l != r)).all():
+                    n += dz
+    if dx >= SEAM_MIN:
+        for a in ((z - 1, z), (z + dz - 1, z + dz)):
+            if 0 <= a[0] and a[1] < NZ:
+                l, r = B[x:x + dx, a[0]], B[x:x + dx, a[1]]
+                if ((l >= 0) & (r >= 0) & (l != r)).all():
+                    n += dx
+    return n
+
+
+def allowed_colours(catalog, palette, interior):
+    """{part id: bool array over palette index (0 = interior colour)}: which colours each part
+    may take, from the catalog's verified availability. None when the catalog has none (then
+    every combo is allowed and reported by tier). The 1x1 brick, plate and tile stay allowed
+    in every colour, so a cell can always be covered; the checks still flag such a combo as
+    unverified."""
+    if not catalog.availability:
+        return None
+    out = {}
+    for t in catalog.parts:
+        a = np.array([True] + [catalog.available(t.id, k) != "unverified" for k in palette])
+        if t.shape == "box" and t.L == t.W == 1:
+            a[:] = True
+        a[0] = a[interior]
+        out[t.id] = a
+    return out
 
 
 def _shapes(types):
@@ -474,13 +575,14 @@ class FitMaps:
 
     ok[k][ax, az] is True when shape k anchored at (ax, az) lies on free cells, sees at most
     one required colour (0 = wildcard), no forbidden (-1) cells, and, if `under` is given,
-    rests on at least one occupied cell below. color[k] holds the colour it would take.
+    rests on at least one occupied cell below. color[k] holds the colour it would take, and
+    `allow` ({part id: bool per palette index}) rules out colours a part isn't made in.
     Window tests use summed-area tables over the free cells' bounding box; colours are
     uniform exactly when n * sum(v^2) == sum(v)^2 over the n required cells.
     This replaces per-rectangle numpy slicing, which dominated packing time.
     """
 
-    def __init__(self, shapes, free, col, under=None):
+    def __init__(self, shapes, free, col, under=None, allow=None):
         NX, NZ = free.shape
         self.shapes = shapes
         self.ok = [np.zeros((NX, NZ), dtype=bool) for _ in shapes]
@@ -509,6 +611,8 @@ class FitMaps:
                 colour = np.where(n > 0, sv // np.maximum(n, 1), 0)
                 cache[dx, dz] = (good, colour)
             good, colour = cache[dx, dz]
+            if allow is not None and t.id in allow:
+                good = good & allow[t.id][np.clip(colour, 0, len(allow[t.id]) - 1)]
             gx, gz = good.shape
             self.ok[k][x0:x0 + gx, z0:z0 + gz] = good
             self.color[k][x0:x0 + gx, z0:z0 + gz] = colour
@@ -621,24 +725,73 @@ def _repair(V, parts, shape, no_brick, no_tile, priority, recolor, trim=False, k
                             V[x, z, y] = 0
                             changed -= 1  # negative = trimmed, tracked separately
             continue
-        if not recolor:
-            continue
+    # a group that touches the main structure only sideways across visible cells of another
+    # colour can't be joined by any re-pack: recolour its one contact cell straight away
+    changed += _recolour_contacts(V, bad, occ, d, main, shape, only_blocked=not recolor)
+    return changed, zone
+
+
+def _colour_blocked(V, vis, ps, occ, d, main, shape):
+    """Does this stranded group touch the main structure only sideways, across visible cells
+    of different colours? (Then no part can span the contact, and no re-pack helps.)"""
+    NX, NZ, NY = shape
+    touch = False
+    for p in ps:
         for x in range(p["x"], p["x"] + p["dx"]):
             for z in range(p["z"], p["z"] + p["dz"]):
                 for y in range(p["y"], p["y"] + p["h"]):
-                    votes: dict = {}
                     for a, b, c in ((x + 1, z, y), (x - 1, z, y), (x, z + 1, y), (x, z - 1, y),
                                     (x, z, y + 1), (x, z, y - 1)):
-                        if 0 <= a < NX and 0 <= b < NZ and 0 <= c < NY and occ[a, b, c] >= 0 \
-                                and d.find(int(occ[a, b, c])) == main:
-                            v = int(V[a, b, c])
-                            votes[v] = votes.get(v, 0) + 1
-                    if votes:
-                        newc = max(votes, key=votes.get)
-                        if V[x, z, y] != newc:
-                            V[x, z, y] = newc
-                            changed += 1
-    return changed, zone
+                        if not (0 <= a < NX and 0 <= b < NZ and 0 <= c < NY) or occ[a, b, c] < 0 \
+                                or d.find(int(occ[a, b, c])) != main:
+                            continue
+                        if c != y:
+                            return False           # stacked on / under the main structure
+                        touch = True
+                        if V[a, b, c] == V[x, z, y] or not vis[a, b, c] or not vis[x, z, y]:
+                            return False
+    return touch
+
+
+def _recolour_contacts(V, bad, occ, d, main, shape, only_blocked=False):
+    """Recolour step: per stranded group, ONE cell where it touches the main structure takes
+    the main colour there (the middle-height contact, preferring cells with more main
+    neighbours). One plate across the colour boundary is enough to join the group: its
+    stacked parts hold on to that plate. Recolouring every contact cell instead eroded
+    features such as a fin column by column. Returns the number of cells changed."""
+    NX, NZ, NY = shape
+    groups: dict = {}
+    for p in bad:
+        groups.setdefault(d.find(p["id"]), []).append(p)
+    changed = 0
+    vis = exterior_visible(V) if only_blocked else None
+    for ps in groups.values():
+        if only_blocked and not _colour_blocked(V, vis, ps, occ, d, main, shape):
+            continue
+        contacts = []
+        for p in ps:
+            for x in range(p["x"], p["x"] + p["dx"]):
+                for z in range(p["z"], p["z"] + p["dz"]):
+                    for y in range(p["y"], p["y"] + p["h"]):
+                        votes: dict = {}
+                        for a, b, c in ((x + 1, z, y), (x - 1, z, y), (x, z + 1, y), (x, z - 1, y),
+                                        (x, z, y + 1), (x, z, y - 1)):
+                            if 0 <= a < NX and 0 <= b < NZ and 0 <= c < NY and occ[a, b, c] >= 0 \
+                                    and d.find(int(occ[a, b, c])) == main:
+                                v = int(V[a, b, c])
+                                votes[v] = votes.get(v, 0) + 1
+                        if votes:
+                            newc = max(votes, key=votes.get)
+                            if V[x, z, y] != newc:
+                                contacts.append((y, -votes[newc], x, z, newc))
+        if not contacts:
+            continue
+        ys = sorted(c[0] for c in contacts)
+        mid = ys[len(ys) // 2]
+        y, _, x, z, newc = min(contacts, key=lambda c: (abs(c[0] - mid), c[1], c[0], c[2], c[3]))
+        V[x, z, y] = newc
+        changed += 1
+    return changed
 
 
 def _studded_by_repair(parts, W, no_tile, finish) -> int:
@@ -667,7 +820,7 @@ def change_counts(V, W, palette) -> dict:
 
 
 def brickify(V, palette, catalog, seeds=8, finish="tiles", use_bricks=True, max_len=8,
-             repair_rounds=6, log=print, shapes=True, anchors=None):
+             repair_rounds=12, log=print, shapes=True, anchors=None):
     """Try several seeds (each with a repair loop), validate, keep the best.
     Returns (parts, stats, V_final) where V_final includes any repair recolouring."""
     from .validate import validate
@@ -678,17 +831,33 @@ def brickify(V, palette, catalog, seeds=8, finish="tiles", use_bricks=True, max_
         no_brick = np.zeros(V.shape, dtype=bool)
         no_tile = np.zeros(V.shape, dtype=bool)
         priority = np.zeros(V.shape, dtype=np.int32)
+        # repair stages, least invasive first: 0 re-pack, 1 + studded plates above, 2 + recolour,
+        # 3 + trim. A stage runs while it makes progress (fewer stranded parts: joining one
+        # group along a thin staircase can strand the next), and gives way after 2 idle rounds.
+        stage, least, idle, live = 0, None, 0, 1
+        kept = None                     # the best round so far: repairs never make it worse
         for rnd in range(repair_rounds + 1):
             parts = Packer(W, palette, catalog, seed=s, finish=finish, use_bricks=use_bricks,
                            max_len=max_len, no_brick=no_brick, no_tile=no_tile,
-                           priority=priority, shapes=shapes, anchors=anchors).run()
+                           priority=priority, shapes=shapes, anchors=anchors, live_from=live).run()
             stats = validate(parts, W.shape, catalog, with_necks=False)
+            score = (stats["structures"], stats["floating"])
+            if kept is None or score < kept[0]:
+                kept = (score, parts, stats, W.copy(), no_tile.copy())
             if (stats["floating"] == 0 and stats["structures"] == 1) or rnd == repair_rounds:
                 break
+            if least is None or score < least:
+                least, idle = score, 0
+            else:
+                idle += 1
+                if idle >= 2 and stage < 3:
+                    stage, idle = stage + 1, 0
+            live = int(priority.max()) + 1            # this round's stranded groups get these
             ch, zone = _repair(W, parts, W.shape, no_brick, no_tile, priority, keep=islands,
-                               studs_up=rnd >= 2, recolor=rnd in (3, 4), trim=rnd >= 5)
-            if zone < 0 or (ch == 0 and zone == 0 and rnd >= 5):   # nothing repairable left
+                               studs_up=stage >= 1, recolor=stage == 2, trim=stage >= 3)
+            if zone < 0 or (ch == 0 and zone == 0 and stage >= 3):   # nothing repairable left
                 break
+        _, parts, stats, W, no_tile = kept
         stats.update(change_counts(V, W, palette))
         stats["studded_cells"] = _studded_by_repair(parts, W, no_tile, finish)
         stats["design_voxels"] = int((V > 0).sum())

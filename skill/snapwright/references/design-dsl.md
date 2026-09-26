@@ -21,10 +21,10 @@ Coordinates: `x` and `z` in studs, `y` in plates, `y = 0` is the table. Cell cen
 | `paint(fn, color)` | recolour filled voxels only (stripes, eyes, windows) |
 | `carve(fn)` | remove voxels |
 | `mirror_x(about=None)` | copy left half to right (symmetric subjects) |
-| `mosaic(path, colors=None, mode="flat"|"upright", base_color=, depth=2, dither=False, base_layers=2)` | photo to mosaic; flat = `base_layers` plate layers + a picture layer (grid grows to fit) |
+| `mosaic(path, colors=None, mode="flat"|"upright", base_color=, depth=2, dither=False, base_layers=2)` | photo to mosaic; flat = `base_layers` plate layers + a picture layer (grid grows to fit); default colours: every opaque colour made as a 1x1 tile and plate |
 | `hollow(wall=2, cap=3, brace_every=8, brace=2, floor=True)` | remove hidden interior, keep a shell and 2x2 bracing columns; call last |
 | `base(color="dark_bluish_gray", layers=2, margin=1)` | stand the model on a plate base (grid grows, model moves up) |
-| `panel(name, face="+z", at=0, plane=None, top=None, width=4, height=4, depth=2)` | a sideways (SNOT) panel on a face; returns a panel model to paint |
+| `panel(name, face="+z", at=0, plane=None, top=None, width=4, height=4, depth=2)` | a sideways (SNOT) panel on a face; returns a panel model to paint; with `top` the default `plane` is the surface across the panel's own rows |
 | `grow_height(h)` | make the grid at least `h` plates tall |
 | `islands()` | voxel groups touching neither the ground nor the rest (must be empty to build) |
 

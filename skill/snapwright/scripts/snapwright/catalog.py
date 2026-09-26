@@ -83,12 +83,22 @@ class Catalog:
                       key=lambda p: (-p.area * p.h, -p.L, p.id))
 
     def available(self, part_id: str, color: str) -> str:
-        """Return 'verified', 'likely' or 'unverified' for a part-colour combo."""
-        if self.availability:
+        """Return 'verified', 'likely' or 'unverified' for a part-colour combo. With synced
+        availability (sw.py sync-catalog) a listed part is verified or unverified; otherwise,
+        or for a part added since the sync, core colours are 'likely'."""
+        if part_id in self.availability:
             ok = color in self.availability.get(part_id, [])
             return "verified" if ok else "unverified"
         tier = self.colors.get(color, {}).get("tier")
         return "likely" if tier == "core" else "unverified"
+
+    def pixel_colours(self, parts=("3070b", "3024")) -> list[str]:
+        """Opaque colours a mosaic pixel can be: made as a 1x1 tile and a 1x1 plate (so either
+        finish works). Without synced availability, the core colours."""
+        if not self.availability:
+            return [k for k, c in self.colors.items() if c["tier"] == "core" and not k.startswith("trans")]
+        return [k for k in self.colors if not k.startswith("trans")
+                and all(self.available(p, k) == "verified" for p in parts)]
 
     # ---- colours -----------------------------------------------------
     def color(self, key: str) -> dict:

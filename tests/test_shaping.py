@@ -60,3 +60,23 @@ def test_schema_02_upgrades():
     from snapwright.pipeline import load_model
     m = load_model({"schema": "snapwright.model/0.2", "meta": {}, "parts": [], "steps": [], "stats": {}})
     assert m["schema"] == "snapwright.model/0.4" and m["meta"]["upgraded_from"] == "snapwright.model/0.2"
+
+
+def test_cells_under_a_round_keep_their_colour():
+    """A round brick leaves its footprint's corners open, so the cells under it show there.
+    They must keep their design colour, not take the hidden-filler colour (the model's most
+    common one): a yellow 2x2 post on a grey base once showed yellow corners."""
+    m = model_from_src('''
+model = Model(8, 8, 40)
+model.box(1, 1, 0, 7, 7, 2, "light_bluish_gray")
+model.box(3, 3, 2, 5, 5, 40, "yellow")
+''')
+    model, built = solve(m, seeds=1)
+    rounds = [p for p in model["parts"] if p.get("shape") == "round"]
+    assert rounds, "the lone 2x2 post should become round bricks"
+    lowest = min(p["y"] for p in rounds)
+    assert lowest == 2
+    under = [p for p in model["parts"] if p["y"] <= lowest - 1 < p["y"] + p["h"]
+             and p["x"] < 5 and 3 < p["x"] + p["dx"] and p["z"] < 5 and 3 < p["z"] + p["dz"]]
+    assert under and all(p["color"] == "light_bluish_gray" for p in under), \
+        [(p["part"], p["color"]) for p in under]

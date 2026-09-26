@@ -43,3 +43,30 @@ def test_upright_mosaic_passes(tmp_path, cat):
     m.mosaic(str(img), colors=["red", "white", "black"], mode="upright", depth=2)
     model, built = solve(m, catalog=cat, seeds=2)
     check_model(model, m.V, built, m.palette)
+
+
+def _boundaries(parts, y, NX, NZ):
+    """Grid edges between neighbouring cells that are a part boundary on layer y."""
+    own = -np.ones((NX, NZ), dtype=int)
+    for p in parts:
+        if p["y"] <= y < p["y"] + p["h"]:
+            own[p["x"]:p["x"] + p["dx"], p["z"]:p["z"] + p["dz"]] = p["id"]
+    return own[1:, :] != own[:-1, :], own[:, 1:] != own[:, :-1]
+
+
+def test_mosaic_base_layers_stagger_their_seams(tmp_path, cat):
+    """A 48 x 48 base packs neatly into 8 x 8 plates; stacked exactly on each other every seam
+    runs straight through both layers and only the picture tiles would hold it together."""
+    img = tmp_path / "grad.png"
+    g = np.linspace(0, 255, 48).astype(np.uint8)
+    Image.fromarray(np.stack([np.tile(g, (48, 1))] * 3, -1)).save(img)
+    m = Model(48, 48, 3, catalog=cat)
+    m.mosaic(str(img), mode="flat")
+    model, _ = solve(m, catalog=cat, seeds=1)
+    parts = model["parts"]
+    rects = lambda y: {(p["x"], p["z"], p["dx"], p["dz"]) for p in parts if p["y"] == y and p["h"] == 1}
+    stacked = [r for r in rects(1) if r in rects(0) and r[2] * r[3] > 1]
+    assert not stacked, f"{len(stacked)} base plates sit exactly on an identical plate"
+    (ax, az), (bx, bz) = _boundaries(parts, 0, 48, 48), _boundaries(parts, 1, 48, 48)
+    through = (ax & bx).sum() + (az & bz).sum()
+    assert through <= 0.1 * ((ax.sum() + az.sum())), f"{through} seam edges run through both base layers"

@@ -1,0 +1,22 @@
+[
+ {"query": "my daughter drew a dragon (dragon.png in this folder) and she's obsessed with it. could you turn it into something we can actually build together out of bricks? she's 9, so maybe 300-500 pieces, and we'd need a parts list to order", "should_trigger": true},
+ {"query": "I want to build my parents' house out of bricks as an anniversary gift. Attached is a photo from the street (house_front.jpg). Roughly 30cm wide, and I need a BrickLink wanted list so I can order everything", "should_trigger": true},
+ {"query": "can u make a stud mosaic of our wedding photo (wedding.jpg), 64x64, and tell me exactly which plates/tiles to buy in which colours", "should_trigger": true},
+ {"query": "I have an STL of a chess knight I 3D printed last year (knight_v3.stl, Z up). Could it become a brick build about 15 cm tall with step-by-step instructions I can print?", "should_trigger": true},
+ {"query": "design a MOC of a lighthouse on a rocky island, around 1500 parts, and export it so I can open it in Studio", "should_trigger": true},
+ {"query": "We need a brick-built version of our company mascot for a trade show booth (we own the character, it's a fox called Ember, reference sheet attached). About 60 cm tall. Printable build instructions please, our interns will assemble it", "should_trigger": true},
+ {"query": "the build log for my design.py says 'FAIL: 2 separate structures' and something about a weak point at plate 57, what should I change in the design?", "should_trigger": true},
+ {"query": "running a kids workshop on saturday, want to turn this sketch of a treehouse (treehouse_sketch.jpg) into interlocking-brick instructions, max 4 pieces per step, under 250 pieces", "should_trigger": true},
+ {"query": "I'd love a desk-sized brick sculpture of my cat Miso sitting down, here are two photos (miso_front.jpg, miso_side.jpg). Orange tabby with white paws", "should_trigger": true},
+ {"query": "make me a buildable toy-brick model of a 1960s camper van, pastel blue and white, with a 3D viewer I can send my brother", "should_trigger": true},
+ {"query": "write a python script that reads a BrickLink wanted list XML and a price export CSV and totals the cost per colour", "should_trigger": false},
+ {"query": "convert my rocket.stl into a 3mf with tree supports for my Prusa MK4, 0.2mm layers", "should_trigger": false},
+ {"query": "I have about 20 kg of mixed bricks from garage sales. Any tips on sorting them by colour and part type and storing them?", "should_trigger": false},
+ {"query": "turn this photo of my dog into a 32x32 cross-stitch pattern with DMC thread colours", "should_trigger": false},
+ {"query": "how do I build a lighthouse in Minecraft survival mode? give me a block list and a layer by layer plan", "should_trigger": false},
+ {"query": "voxelize this OBJ (tree.obj) into a .vox file I can edit in MagicaVoxel, 64 voxels tall", "should_trigger": false},
+ {"query": "what are the exact dimensions of a 2x4 brick in mm, and why do the studs sometimes feel looser on off-brand bricks?", "should_trigger": false},
+ {"query": "planning a backyard patio with clay pavers, 4m x 3m. herringbone or running bond? and how many pavers do I need", "should_trigger": false},
+ {"query": "draw a cute isometric illustration of a toy robot made of bricks for my son's birthday invitation", "should_trigger": false},
+ {"query": "whats the difference between Technic beams and regular bricks for a school robotics club, which should we buy?", "should_trigger": false}
+]

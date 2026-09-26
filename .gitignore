@@ -13,3 +13,8 @@ creations/*/reference/
 # instruction books and packaged skills are release assets, never commits
 *.pdf
 *.skill
+
+# skill-creator eval runs (large outputs)
+skill/snapwright-workspace/
+skill/snapwright/assets/.rebrickable/
+.venv

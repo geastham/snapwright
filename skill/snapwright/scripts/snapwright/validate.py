@@ -221,9 +221,9 @@ def validate(parts, shape, catalog=None, with_necks=True) -> dict:
     hull = _hull(ground)
     margin = _margin((cx, cz), hull) * STUD_MM if hull else -1
 
-    unverified = []
+    unverified, seen, avail_meta = [], set(), None
     if catalog is not None:
-        seen = set()
+        avail_meta = catalog.raw.get("availability_meta") if catalog.availability else None
         for p in parts:
             k = (p["part"], p["color"])
             if k not in seen:
@@ -263,6 +263,8 @@ def validate(parts, shape, catalog=None, with_necks=True) -> dict:
         "mass_g": round(M, 1),
         "com_margin_mm": round(margin, 1),
         "unverified_combos": unverified,
+        "combos": len(seen),
+        "availability": avail_meta,
         "kinds": kinds,
         "shaped": shaped,
         "shaped_cells": shaped_cells,
@@ -290,6 +292,24 @@ def verdict(stats) -> tuple[bool, list[str]]:
     if stats["com_margin_mm"] < 3:
         fails.append(f"centre of mass only {stats['com_margin_mm']} mm inside the footprint (tips over)")
     return (not fails), fails
+
+
+def _availability_line(st):
+    """Always say where part-colour availability stands, so nobody reads silence as checked."""
+    bad, n, meta = st.get("unverified_combos") or [], st.get("combos"), st.get("availability")
+    names = ", ".join(f"{u['part']} in {u['color'].replace('_', ' ')}" for u in bad[:3])
+    more = f" and {len(bad) - 3} more" if len(bad) > 3 else ""
+    if meta:
+        src = f"{meta.get('source', 'catalog')}" + (f", sets since {meta['since']}" if meta.get("since") else "") \
+              + (f", synced {meta['date']}" if meta.get("date") else "")
+        if not bad:
+            return ("check", f"All {n or ''} part-colour combos have been made ({src})".replace("All  ", "All "))
+        return ("note", f"{len(bad)} part-colour combo{'s' if len(bad) != 1 else ''} not seen in any set "
+                        f"({src}): {names}{more}; check before buying")
+    if bad:
+        return ("note", f"{len(bad)} part-colour combos not verified (catalog not synced): {names}{more}")
+    return ("note", "Part-colour availability not verified (catalog not synced with sw.py "
+                    "sync-catalog); common colours only, marked 'likely'")
 
 
 def report_lines(stats) -> list[tuple[str, str]]:
@@ -339,9 +359,7 @@ def report_lines(stats) -> list[tuple[str, str]]:
                             f"{nk['plate']} up are held by {s_(nk['strength'], 'stud')}"))
     if len(necks) > 3:
         out.append(("note", f"... and {len(necks) - 3} more weak points held by 3 studs or fewer"))
-    if st.get("unverified_combos"):
-        out.append(("note", f"{len(st['unverified_combos'])} part-colour combos not yet verified "
-                            f"against a parts catalog"))
+    out.append(_availability_line(st))
     for f in st.get("failures", []):
         out.append(("fail", f"FAIL: {f}"))
     return out

@@ -29,13 +29,23 @@ vertical) and the model rises behind it by at most two slope heights; boxes stay
 Shaped parts are counted in `stats.shaped` / `shaped_cells` and reported (`--no-shapes` off).
 
 Several seeds, each with a repair loop for parts left outside the main structure, least
-invasive first:
+invasive first. A stage keeps going while each round strands fewer parts (joining one group
+along a thin staircase can strand the next) and gives way after two idle rounds; 12 rounds
+at most:
 1. re-pack: cells of each stranded group are packed first and must join a cell outside the
-   group; a lone 1x1 left over can take a cell from an adjacent part; no bricks around them;
+   group, the main structure if they can, else a neighbouring stranded group; a lone 1x1
+   left over can take a cell from an adjacent part if that joins it to another group; no
+   bricks around them;
 2. studded plates instead of tiles right above them (`studded_cells`);
-3. nudge visible colours to the neighbouring colour (`recolored_cells`);
+3. recolour one contact cell per stranded group to the main colour there (`recolored_cells`):
+   one plate across a colour boundary holds a whole stacked feature such as a fin;
 4. last resort, trim overhang cells nothing can hold (`trimmed_cells`). Voxels that don't
    touch the ground in the design (`floating_voxels`) are never trimmed.
+
+Packing also avoids seams that run straight up through stacked plates (a side of 6+ studs
+lying whole on a joint in the plate below costs score), so flat bases interlock, and uses a
+part only in colours it has actually been made in (`availability` in the catalog; the 1x1
+brick, plate and tile are always allowed as a fallback and then flagged).
 
 Every automatic change is counted from the design grid vs the built grid and listed in the
 CLI summary, the book finale and the viewer (all from `validate.report_lines`).
@@ -64,7 +74,7 @@ Notes (printed in the book and viewer; fix them when you can):
 | studded_cells > 0 | tops that should be smooth tiles got studded plates to hold parts together | usually harmless; to avoid, widen the part it holds or overlap it with the course above |
 | base_cells > 0 | the model would have tipped; a 2-plate base was added under it | accept it, or move mass over the footprint and build with `--base off` |
 | surface shaping | slopes / rounds replace square steps on visible tapers and curves | none needed; `--no-shapes` if you want only bricks, plates and tiles |
-| unverified_combos | part-colour pair not in a verified catalog | run `sw.py sync-catalog`, or swap to a core colour |
+| unverified_combos | part-colour pair not seen in any set since 2005 (Rebrickable data in the catalog), or the catalog isn't synced | swap the colour or the part; `sw.py sync-catalog` refreshes the data (needs network) |
 
 ## Sideways panels (SNOT)
 A panel is its own small grid built flat (x across, y layers up, z rows) and tipped onto a
