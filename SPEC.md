@@ -45,6 +45,9 @@ regenerable from `model.json` alone.
 - Example: `examples/lighthouse` → 1,744 parts, 32.6 cm, 182 steps, PASS (v0.1)
 - After M1 (v0.2): lighthouse 1,760 parts, 184 steps, PASS, ~19 s CPU with book, PDF 4.9 MB;
   `examples/keep` 5,068 parts in ~106 s; 85 tests (unit, fixtures, property, golden) in ~40 s
+- After M2 (v0.3): catalog 0.2 with per-cell connectors; slopes, inverted slopes and rounds by
+  surface shaping; `Model.hollow()` with bracing; automatic base; LDraw export checked against
+  the official library geometry (LeoCAD screenshot pending); schema snapwright.model/0.3
 
 ## 5. Milestones and acceptance criteria
 
@@ -105,7 +108,7 @@ regenerable from `model.json` alone.
 ## 7. Known issues / backlog from v0.1
 1. (M1: 10.2 → 4.9 MB via indexed-colour images; M5 continues) Instruction PDF is ~10 MB for 1.7k parts: switch step images to JPEG-in-PDF or smaller
    indexed PNGs; cache repeated renders.
-2. Parts count is high for solid shapes (no hollowing yet) and tall tapers become plate stacks
+2. (M2: slopes on tapers, `Model.hollow()`; hollowing saves plastic, not parts) Parts count is high for solid shapes (no hollowing yet) and tall tapers become plate stacks
    (no slopes yet).
 3. (Done in M1: region-grown steps) Step planner orders within a level by colour then row; should cluster spatially (k-means or
    sweep) and prefer finishing one region before starting another.

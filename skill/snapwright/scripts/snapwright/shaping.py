@@ -50,6 +50,7 @@ def _colour(req, cells):
 
 STUD_MM, PLATE_MM = 8.0, 3.2
 TILT = 0.35          # a sloped surface: normal at least ~20 degrees from both flat and vertical
+MIN_CURVE_TOP = 16   # cells in a flat top before its stair-step corners count as a curve
 
 
 _CACHE: dict = {}
@@ -271,6 +272,16 @@ def find_shapes(V, req, catalog, finish="tiles", blocked=None, visible=None):
             return True
 
         m = F & ~up & down & visible
+        # a curve's teeth sit on the rim of a sizeable top (a disc, a ring); small separate
+        # tops (merlons, stepped decoration) are deliberate shapes and stay square
+        from scipy.ndimage import label
+        big = np.zeros_like(m)
+        for y in np.unique(np.nonzero(m)[2]):
+            lab, n = label(~up[:, :, y] & F[:, :, y])
+            if n:
+                sizes = np.bincount(lab.ravel())
+                big[:, :, y] = (lab > 0) & (sizes[lab] >= MIN_CURVE_TOP)
+        m &= big
         for x, z, y in np.argwhere(m):
             x, z, y = int(x), int(z), int(y)
             opens = [not (inside(x + ux, z + uz) and F[x + ux, z + uz, y]) for ux, uz in DIRS]

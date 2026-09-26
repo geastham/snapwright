@@ -20,8 +20,10 @@ Spec: SPEC.md §5 M2 plus kickoff notes (connection metadata, renderer, bracing)
       box and egg PASS with no major weak points and balance (tests). Saves ~35%+ mass, not parts
 - [x] Base/stand: `--base auto` (default) stands a tipping model on a 2-plate base, counted as
       added support and reported; `Model.base()` for explicit stands; `--base off` to disable
-- [ ] Property tests + fixtures cover new parts; golden lighthouse updated with explanation
-- [ ] SKILL.md / references / SPEC / README; outputs inspected; PR with Decisions
+- [x] Property tests + fixtures cover new parts (test_shaping, blob_1016, blob_1076); golden
+      lighthouse 1,761 / 185 (M1 1,760 / 184)
+- [x] SKILL.md / references / SPEC / README; book pages, viewer and LDraw renders inspected
+- [ ] PR with Decisions
 
 LDraw facts gathered from the official library (for the catalog and exporter):
 - Box parts: origin top centre, long axis along LDraw X.

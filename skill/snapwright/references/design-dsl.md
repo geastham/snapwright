@@ -20,6 +20,8 @@ Coordinates: `x` and `z` in studs, `y` in plates, `y = 0` is the table. Cell cen
 | `carve(fn)` | remove voxels |
 | `mirror_x(about=None)` | copy left half to right (symmetric subjects) |
 | `mosaic(path, colors=None, mode="flat"|"upright", base_color=, depth=2, dither=False, base_layers=2)` | photo to mosaic; flat = `base_layers` plate layers + a picture layer (grid grows to fit) |
+| `hollow(wall=2, cap=3, brace_every=8, brace=2, floor=True)` | remove hidden interior, keep a shell and 2x2 bracing columns; call last |
+| `base(color="dark_bluish_gray", layers=2, margin=1)` | stand the model on a plate base (grid grows, model moves up) |
 | `grow_height(h)` | make the grid at least `h` plates tall |
 | `islands()` | voxel groups touching neither the ground nor the rest (must be empty to build) |
 
@@ -40,3 +42,8 @@ Organic noise: `model.paint(lambda X, Y, Z: np.sin(X * 1.7) + np.cos(Z * 1.3) > 
 - Thin vertical parts (< 2 x 2 studs) over ~8 plates tall are fragile; thicken or brace.
 - Every overhang needs something to hang from: extend it inward over supported cells.
 - Seal hollow shells with a solid cap so interiors stay hidden (hidden cells can use any colour).
+  `hollow()` does this for you and only ever removes cells nobody can see.
+- You don't place slopes or round parts: the build puts slopes on the stair steps of real
+  tapers (it smooths the surface first, so near-vertical walls stay square), inverted slopes
+  under 1-stud overhang lips, round bricks/plates on thin 1x1 and 2x2 columns, and round
+  tiles on the stair-step corners of curves. Design the voxel shape; shaping follows it.
