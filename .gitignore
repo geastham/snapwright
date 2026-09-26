@@ -18,3 +18,4 @@ creations/*/reference/
 skills/snapwright-workspace/
 skills/snapwright/assets/.rebrickable/
 .venv
+*.zip

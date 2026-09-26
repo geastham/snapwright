@@ -25,7 +25,9 @@ SEEDS = {"keep": 6, "lighthouse": 6}
 
 
 def build(name):
-    d = os.path.join(ROOT, "examples", name)
+    """name: an example (examples/<name>) or a folder path such as creations/creation-a."""
+    d = os.path.join(ROOT, name) if os.path.isdir(os.path.join(ROOT, name)) and "/" in name \
+        else os.path.join(ROOT, "examples", name)
     model = os.path.join(d, "out", "model.json")
     design = os.path.join(d, "design.py")
     if not os.path.exists(model) or os.path.getmtime(model) < os.path.getmtime(design):
