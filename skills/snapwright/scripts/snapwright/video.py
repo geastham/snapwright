@@ -18,7 +18,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from .catalog import Catalog
 from .render import render_parts
-from .snot import PanelSpec
+from .hinge import spec_from_json
 
 PAPER = (247, 245, 240)
 INK = (38, 38, 38)
@@ -74,7 +74,7 @@ def build_video(model, path, catalog=None, seconds=24.0, fps=30, size=(1080, 108
     cols = {p["id"]: cat.colors[p["color"]]["hex"] for p in parts}
     order = sorted(parts, key=lambda p: (p.get("step", 0), p["y"], p["x"], p["z"]))
     attach = {st["sub"]: st["n"] for st in model["steps"] if st.get("kind") == "attach"}
-    subs = [dict(spec=PanelSpec.from_json(sb["spec"]), parts=sb["parts"], step=attach.get(sb["name"], 0),
+    subs = [dict(spec=spec_from_json(sb["spec"]), parts=sb["parts"], step=attach.get(sb["name"], 0),
                  colors={q["id"]: cat.colors[q["color"]]["hex"] for q in sb["parts"]})
             for sb in model.get("subassemblies", [])]
 

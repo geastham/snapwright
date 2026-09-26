@@ -214,6 +214,9 @@ class Model:
         self._grid()
         for pn in self.panels:                       # panels move with the model
             sp = pn.spec
+            if getattr(sp, "mount", "") == "hinge":
+                sp.shift(px0, pz0, layers)
+                continue
             sp.top += layers
             if sp.ztype:
                 sp.a0 += px0
@@ -269,6 +272,54 @@ class Model:
         self.V[x0:x1, z0:z1, y0:y1] = 0
         p = Panel(width, height, depth, title=name, catalog=self.catalog)
         p.spec = spec
+        self.panels.append(p)
+        return p
+
+    def hinged_panel(self, name: str, toward: str = "+x", angle: float = 45, edge: int = 0,
+                     y: int = 0, at: int = 0, width: int = 8, height: int = 8, depth: int = 2,
+                     hinges=None, row: int = 0, hinge_color: str = "black"):
+        """A panel built flat and clicked onto the model at an angle with locking hinge plates
+        (a tilted face, a sign, a dashboard). Paint it like a sideways panel: x across (to the
+        right, seen square-on), z rows down the slope from the hinge edge, y plate layers out.
+        Its top layer can carry hand-placed curved tiles (Panel.place) for true curves.
+
+        toward: the way the panel tips down ("+x", "-x", "+z", "-z").
+        angle: degrees below horizontal; click hinges lock every 22.5 degrees.
+        edge: the stud line (along `toward`) where the fixed hinge plates end; the hinge axis
+              is half a stud beyond it, 0.8 mm below the plates' top.
+        y: plate level the fixed hinge plates sit on (the model must have studs right below).
+        at, width: the studs across the panel covers (z for x-facing tips, x for z-facing).
+        height, depth: rows down the slope and plate layers (tiles are the top layer).
+        hinges: across stud positions of the hinge pairs (default: 2, a quarter in from each side).
+        row: the panel row over the moving hinge plate's first stud (0: the panel's top edge
+             starts half a stud from the axis).
+        The panel's space, its hinge layer and the knuckles are carved out of this model, and
+        the fixed hinge cells are kept for the hinge plates. Returns the panel."""
+        from .hinge import CLICK_DEG, HingeSpec
+        f = {"+x": 0, "+z": 1, "-x": 2, "-z": 3}[toward]
+        if abs(angle / CLICK_DEG - round(angle / CLICK_DEG)) > 1e-6:
+            raise ValueError(f"hinged panel {name!r}: click hinges lock every {CLICK_DEG} degrees "
+                             f"(0, 22.5, 45, 67.5, 90); got {angle}")
+        if hinges is None:
+            q = max(1, width // 4)
+            hinges = (at + q, at + width - 1 - q)
+        spec = HingeSpec(name, f, float(angle), int(edge), int(y), int(at), int(width), int(height),
+                         int(depth), tuple(int(h) for h in hinges), int(row))
+        for h in spec.hinges:
+            if not at <= h < at + width:
+                raise ValueError(f"hinged panel {name!r}: hinge at {h} is outside the panel ({at}..{at + width - 1})")
+        clear = spec.keep_clear(self.X, self.Y, self.Z)
+        fixed = np.zeros_like(clear)
+        for h in spec.hinges:
+            for (cx, cz) in spec.fixed_cells(h):
+                if not (0 <= cx < self.NX and 0 <= cz < self.NZ and 0 <= spec.y < self.NY):
+                    raise ValueError(f"hinged panel {name!r}: hinge plate cell ({cx}, {cz}) is outside the grid")
+                fixed[cx, cz, spec.y] = True
+        self.V[clear | fixed] = 0
+        spec.hinge_color = hinge_color
+        p = Panel(width, height, depth, title=name, catalog=self.catalog)
+        p.spec = spec
+        p.placed = []
         self.panels.append(p)
         return p
 
@@ -402,6 +453,24 @@ class Panel(Model):
     the front: the picture's top row is the panel's top edge."""
 
     spec = None
+    placed: list = []
+
+    def place(self, part: str, x: int, z: int, color: str, rot: int = 0):
+        """Put a curved tile on the panel's top layer by hand (hinged panels): a macaroni
+        (27925 2x2 quarter ring r 1-2, 27507 4x4 quarter ring r 3-4), a quarter round (25269),
+        a half circle (24246) or a round tile (98138, 14769, 67095). (x, z) is the footprint's
+        min corner after turning it `rot` quarter turns (rot 1 turns +x onto +z); at rot 0 the
+        quarter shapes are centred on the footprint's (x, z) corner and fill towards +x, +z.
+        Other tiles on the top layer keep clear of its outline; cells it covers but doesn't
+        grip get a flat tile one layer down. Returns the panel."""
+        from .hinge import TILES, Placed
+        if getattr(self.spec, "mount", "") != "hinge":
+            raise ValueError("place() is for hinged panels (their top layer is packed around the tiles)")
+        if part not in TILES:
+            raise ValueError(f"no outline for part {part}; curved tiles: {', '.join(sorted(TILES))}")
+        self._idx(color)
+        self.placed = list(self.placed) + [Placed(part, int(x), int(z), int(rot) % 4, color)]
+        return self
 
     def mosaic(self, image_path, colors=None, mode="flat", base_color="black", depth=None,
                dither=False, base_layers=None):

@@ -53,7 +53,7 @@ def test_connection_metadata(cat):
     assert cheese.h == 2 and cheese.local_cells("top") == set()
     for p in cat.parts:                                  # every part is exportable
         assert p.ldraw.endswith(".dat") and p.shape in ("box", "slope", "slope_inv", "slope_cvx",
-                                                          "slope_ccv", "round", "snot")
+                                                          "slope_ccv", "round", "snot", "outline", "hinge")
     cvx, ccv = cat.by_id["3045"], cat.by_id["3046"]           # corner slopes (checked vs LDraw)
     assert cvx.local_cells("top") == set() and len(cvx.local_cells("bottom")) == 4
     assert ccv.local_cells("top") == {(0, 0), (1, 0), (0, 1)} and cvx.ldraw_origin == "corner_top"

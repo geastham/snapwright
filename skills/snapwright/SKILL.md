@@ -150,6 +150,12 @@ piece, every part held, at least 2 side studs), shows it in a boxed "sub-build" 
 with an attach step, and animates the attach in the viewer. Details in
 `references/design-dsl.md`.
 
+For a face that must sit at an angle (a ring's face, a dashboard), use
+`model.hinged_panel(...)`: built flat, clicked on with locking hinges at a multiple of 22.5
+degrees. Its top layer can take curved tiles placed by hand (`face.place("27507", x, z,
+"black", rot=k)`: macaroni, quarter and round tiles) for true circles and arcs, which the voxel
+grid can't make. See "Hinged panels and curved tiles" in `references/design-dsl.md`.
+
 ## 6. Photos to mosaics
 
 For "make a mosaic of this photo": `model = Model(48, 48, 3)` then

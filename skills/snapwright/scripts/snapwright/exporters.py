@@ -47,6 +47,12 @@ def ldraw_line(p, t, col) -> str:
             cx = {0: x + 0.5, 2: x + dx - 0.5}.get(d, x + dx / 2)
             cz = {1: z + 0.5, 3: z + dz - 0.5}.get(d, z + dz / 2)
             X, Z, Y = cx * 20, -cz * 20, -(y + h) * 8
+    elif t.shape == "outline":                      # curved tiles: origin from the placed outline
+        m = CORNER_MATRIX[p.get("rot", 0) % 4]
+        X, Z, Y = p["origin"][0] * 20, -p["origin"][1] * 20, -(y + h) * 8
+    elif t.shape == "hinge":                        # fingers point `dir` (native: LDraw +X, our +x)
+        m = CORNER_MATRIX[p.get("dir", 0) % 4]
+        X, Z, Y = (x + dx / 2) * 20, -(z + dz / 2) * 20, -(y + h) * 8
     elif t.shape == "snot":                         # side studs face `dir`, like a slope's low side
         m = SLOPE_MATRIX[p.get("dir", 1)]
         X, Z, Y = (x + dx / 2) * 20, -(z + dz / 2) * 20, -(y + h) * 8
@@ -87,8 +93,8 @@ def to_ldraw(model, catalog) -> str:
         if st.get("kind") == "subassembly":
             continue
         if st.get("kind") == "attach":
-            from .snot import PanelSpec
-            T, P = panel_placement(PanelSpec.from_json(subs[st["sub"]]["spec"]))
+            from .hinge import spec_from_json
+            T, P = panel_placement(spec_from_json(subs[st["sub"]]["spec"]))
             out.write(f"1 16 {' '.join(_fmt(v) for v in T)} {' '.join(_fmt(v) for v in P.ravel())} "
                       f"{slug}-{_file_name(st['sub'])}.ldr\n")
         for pid in st["parts"]:
@@ -186,6 +192,18 @@ def parse_ldraw(text, catalog):
                 z = {1: cz - 0.5, 3: cz + 0.5 - dz}.get(d, cz - dz / 2)
                 y = -Y / 8 - t.h
             rec.update(rot=d, dir=d)
+        elif t.shape in ("hinge", "outline"):
+            from .hinge import placed_geometry
+            d = corner_dir[m]
+            if t.shape == "hinge":
+                dx, dz = (t.L, t.W) if d in (0, 2) else (t.W, t.L)
+                x, z = X / 20 - dx / 2, -Z / 20 - dz / 2
+                rec.update(rot=d, dir=d)
+            else:                                   # back from the origin to the footprint corner
+                _, org, dx, dz = placed_geometry(t.id, 0, 0, d)
+                x, z = X / 20 - org[0], -Z / 20 - org[1]
+                rec.update(rot=d)
+            y = -Y / 8 - t.h
         else:
             r = box_rot[m]
             dx, dz = (t.L, t.W) if r == 0 else (t.W, t.L)

@@ -90,6 +90,21 @@ structure, every part held through the side studs, at least 2 side studs, nothin
 in its space; the panel's mass counts in the balance check. Failures are prefixed with the
 panel's name. Fix "held by 0 side studs" by making the model solid right behind the panel.
 
+## Hinged panels and curved tiles
+A hinged panel's grid is (W across, H rows, D + 1 layers): layer 0 holds the moving hinge
+plates (44301, fingers toward the hinge edge), layers 1..D the design. Locking hinges (from the
+LDraw geometry of 44301a / 44302a) turn about an axis half a stud beyond each plate's end and
+0.8 mm below its top, so the panel frame is: axis on the fixed plates' side, panel top edge
+4 mm down the slope, panel bottom 0.8 mm out from the axis. Packing: base layers as studded
+plates, the top layer as tiles around the placed curved tiles. A curved tile grips a cell when
+the whole stud (radius 0.29 studs) lies under its outline; a covered cell it doesn't grip gets a
+flat tile one layer down. Checks: at least 2 hinges, every part held through them, no tile
+overlaps, no model part in the panel's space (oriented-box test, knuckles included).
+In model.json the subassembly's `spec` has `mount: "hinge"`, `toward`, `angle`, `edge`, `y`,
+`a0`, `W`, `H`, `D`, `hinges`, `row`; curved tiles have shape `outline` with `outline`
+(studs, panel grid) and `origin` (the LDraw origin); fixed hinge plates on the model have
+shape `hinge`, `dir` (finger direction) and `hinge` (the panel's name).
+
 ## Steps
 Bottom-up by plate level. Each part is placed when it can click onto something already
 placed and there is room to press it on: down onto parts below, or (overhangs) up into
@@ -97,7 +112,8 @@ parts above with nothing below it yet. Steps are compact regions of at most `max
 parts. The camera turns only between levels, to the quarter view that shows the most new
 parts (id-buffer render), or for a single step when two or more of its parts would be hidden.
 Each sideways panel's steps (`kind: subassembly`, `sub: name`) come right after its last
-anchor brick, followed by an `attach` step (no parts).
+anchor brick, followed by an `attach` step (no parts). A hinged panel's steps and its attach
+step come at the end.
 
 ## model.json (schema snapwright.model/0.4)
 `meta` (title, slug, author, disclaimer, finish, audience), `grid.shape` [x, z, y],

@@ -49,10 +49,10 @@ class Book:
         self.colors = {p["id"]: catalog.colors[p["color"]]["hex"] for p in parts}
         self.studs = {p["id"]: p["studs"] for p in parts}
         self._icons = {}
-        from .snot import PanelSpec
+        from .hinge import spec_from_json
         self.subs = {}
         for sb in model.get("subassemblies", []):
-            self.subs[sb["name"]] = {"spec": PanelSpec.from_json(sb["spec"]), "parts": sb["parts"],
+            self.subs[sb["name"]] = {"spec": spec_from_json(sb["spec"]), "parts": sb["parts"],
                                      "grid": tuple(sb["grid"]),
                                      "colors": {q["id"]: catalog.colors[q["color"]]["hex"] for q in sb["parts"]}}
         self.attach_at = {st["sub"]: st["n"] for st in model["steps"] if st.get("kind") == "attach"}
