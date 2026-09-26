@@ -38,6 +38,7 @@ DIR_VEC = {0: (1, 0), 1: (0, 1), 2: (-1, 0), 3: (0, -1)}   # +x, +z, -x, -z
 HINGE_FIXED, HINGE_MOVING = "44302", "44301"
 AXIS_BEYOND_MM, AXIS_BELOW_TOP_MM = 4.0, 0.8
 CLICK_DEG = 22.5
+KNUCKLE_MM = 3.0                 # finger radius 6-6.4 LDU (2.6 mm) plus play
 STUD_R = 0.29                    # stud radius, studs (4.8 mm across, a little play)
 
 # ---- curved tiles ----------------------------------------------------------------------------
@@ -271,13 +272,13 @@ class HingeSpec:
         hit = _boxes_touch(c, h, self.origin() + R @ ext, R, ext)
         A = self.axis_point()
         r, _, _ = self.frame()
-        for g in self.hinges:                  # each knuckle: a 6.5 mm radius, one stud wide
+        for g in self.hinges:                  # each knuckle: ~2.6 mm radius (LDraw), one stud wide
             i = self.column_of(g)
             mid = A + (i + 0.5) * STUD_MM * r
             Rk = np.stack([r, np.cross(r, [0.0, 1.0, 0.0]) if abs(r[1]) < 0.9 else [1.0, 0, 0],
                            [0.0, 1.0, 0.0]], axis=1)
             Rk[:, 1] = np.cross(Rk[:, 2], Rk[:, 0])
-            hit |= _boxes_touch(c, h, mid, Rk, np.array([STUD_MM / 2, 6.5, 6.5]))
+            hit |= _boxes_touch(c, h, mid, Rk, np.array([STUD_MM / 2, KNUCKLE_MM, KNUCKLE_MM]))
         return hit
 
     def to_json(self):
@@ -410,7 +411,9 @@ def _tiles(layer, palette, catalog, log):
     on the table), keeping only the tiles. Returns parts at y = 0."""
     from .brickify import brickify
     V = np.stack([layer, layer], axis=-1)
-    ps, _, _ = brickify(V, palette, catalog, seeds=1, finish="tiles", log=log, shapes=False)
+    # no repairs: separate islands are fine here (each sits on the panel), studding would not be
+    ps, _, _ = brickify(V, palette, catalog, seeds=1, finish="tiles", log=log, shapes=False,
+                        repair_rounds=0)
     out = [dict(p, y=0) for p in ps if p["y"] == 1]
     if any(p["kind"] != "tile" for p in out) or sum(p["dx"] * p["dz"] for p in out) != int((layer > 0).sum()):
         raise RuntimeError("tile layer did not pack as tiles")

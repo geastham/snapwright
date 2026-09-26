@@ -80,6 +80,7 @@ def build_video(model, path, catalog=None, seconds=24.0, fps=30, size=(1080, 108
 
     build_frames = max(1, int(seconds * fps))
     n = len(order)
+    n_total = n + sum(len(s["parts"]) for s in subs)
     # when each part starts to fall: eased so the first and last parts take their time
     starts = [int(round(build_frames * (0.5 - 0.5 * math.cos(math.pi * k / max(1, n - 1))))) for k in range(n)]
     title = model["meta"]["title"]
@@ -110,15 +111,15 @@ def build_video(model, path, catalog=None, seconds=24.0, fps=30, size=(1080, 108
         d = ImageDraw.Draw(out)
         x0, y0 = int(W * 0.05), int(H * 0.87)
         d.text((x0, y0), title, fill=INK, font=big)
-        d.text((x0, y0 + int(H * 0.055)), f"{placed:,} / {n:,} parts", fill=SOFT, font=small)
+        d.text((x0, y0 + int(H * 0.055)), f"{placed:,} / {n_total:,} parts", fill=SOFT, font=small)
         if watermark:
             _watermark(out, d, watermark, W - x0, y0, H, big, small)
         return out
 
-    def render(shown, v):
+    def render(shown, v, all_panels=False):
         step_now = max((p.get("step", 0) for p in shown), default=0)
         pans = [dict(spec=s["spec"], parts=s["parts"], colors=s["colors"], hl=False)
-                for s in subs if s["step"] and s["step"] <= step_now]
+                for s in subs if s["step"] and (all_panels or s["step"] <= step_now)]
         allc = dict(cols)
         return render_parts(shown, shape, allc, cat, view=v, panels=pans or None, size=(pw, pw),
                             framing=frame_box)
@@ -160,7 +161,17 @@ def build_video(model, path, catalog=None, seconds=24.0, fps=30, size=(1080, 108
         emit(compose(render(shown, view), placed, view))
         if f % (fps * 2) == 0:
             log(f"  video: frame {f} of {total} ({placed:,} parts placed)")
-    final = [compose(render(order, (view + k) % 4), n, (view + k) % 4) for k in range(4 if turn else 1)]
+    n_all = n_total
+    last = max((p.get("step", 0) for p in order), default=0)
+    if any(s["step"] > last for s in subs):    # panels that go on after the last part (hinged faces)
+        a = compose(render(order, view), n, view)
+        b = compose(render(order, view, all_panels=True), n_all, view)
+        for _ in range(int(0.4 * fps)):
+            emit(a)
+        for i in range(int(0.8 * fps)):
+            emit(Image.blend(a, b, (i + 1) / int(0.8 * fps)))
+    final = [compose(render(order, (view + k) % 4, all_panels=True), n_all, (view + k) % 4)
+             for k in range(4 if turn else 1)]
     for _ in range(int(hold * fps)):
         emit(final[0])
     if turn:                                   # the other three sides, dissolving into each other

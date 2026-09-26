@@ -284,7 +284,10 @@ class Book:
                     c.drawString(x0 + 60, y0 + chh - 34, f"Attach the {sub} panel")
                     c.setFont("Helvetica", 8.5)
                     c.setFillColor(SOFT)
-                    c.drawString(x0 + 60, y0 + chh - 48, "Tip it up and press it onto the side studs.")
+                    sp = self.subs[sub]["spec"]
+                    how = (f"Click its hinges onto the hinge plates and lock it at {sp.angle:g} degrees."
+                           if getattr(sp, "mount", "") == "hinge" else "Tip it up and press it onto the side studs.")
+                    c.drawString(x0 + 60, y0 + chh - 48, how)
                 if st.get("kind") == "overhang":
                     c.setFont("Helvetica-Oblique", 8)
                     c.setFillColor(SOFT)
