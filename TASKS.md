@@ -23,7 +23,7 @@ Spec: SPEC.md §5 M2 plus kickoff notes (connection metadata, renderer, bracing)
 - [x] Property tests + fixtures cover new parts (test_shaping, blob_1016, blob_1076); golden
       lighthouse 1,761 / 185 (M1 1,760 / 184)
 - [x] SKILL.md / references / SPEC / README; book pages, viewer and LDraw renders inspected
-- [ ] PR with Decisions
+- [x] PR with Decisions (https://github.com/geastham/snapwright/pull/2)
 
 LDraw facts gathered from the official library (for the catalog and exporter):
 - Box parts: origin top centre, long axis along LDraw X.
