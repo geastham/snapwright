@@ -51,18 +51,22 @@ corner slopes (SPEC backlog item 11).
 
 `evals/trigger_eval.json` has 20 realistic queries: 10 that should use the skill and 10
 near-misses that shouldn't (a BrickLink XML script, STL to 3MF, cross-stitch, Minecraft,
-MagicaVoxel, patio bricks, and others). With the current description, each query run 3
-times with Opus 5.5 (a query counts as triggered when at least 2 of 3 runs load the skill):
+MagicaVoxel, patio bricks, and others). Result, with each query run 3 times with Opus 5.5 in a clean project: **20/20**. All 10
+should-trigger queries loaded the skill 3/3 times, including the "fix my failing build log"
+case, and all 10 near-misses stayed off 0/3. skill-creator's `run_loop` found nothing to
+improve, so the description is unchanged.
 
-- **Scores:** 19/20 correct. All 10 near-misses stayed off (0/3 each), and 9 of the 10
-  should-trigger queries triggered (7 of them 3/3).
-- **The miss:** "the build log for my design.py says 'FAIL: 2 separate structures' ...
-  what should I change?" (1/3). Claude often answers that kind of question directly. The
-  description now also names fixing a failing design or build log; that left the 10
-  negatives at 0/3 and the miss at 1/3.
-- **The optimisation loop:** skill-creator's `run_loop` wasn't used to rewrite the
-  description, for two reasons. The test account already had this skill installed with the
-  same description, and the model used that copy instead of the harness's temporary one (so
-  the harness saw 0% recall); a proposed rewrite also put a manufacturer's brand in the
-  description, which NOTICE.md rules out. The runs above count a trigger of either copy,
-  which is valid only because both carry the description under test.
+Getting a clean measurement took three fixes to the harness (in a local copy of
+skill-creator's `run_eval.py`):
+- **Skill folder, not command file:** the skill under test is installed as
+  `.claude/skills/<name>/SKILL.md`. This Claude Code version lists `.claude/commands` files
+  as slash commands only, so the model never saw them (0% recall).
+- **Isolation from the installed copy:** `claude -p` runs with `--setting-sources project`,
+  so a copy of the skill already on the account can't answer in place of the one under
+  test.
+- **Real name:** each query gets its own throwaway project with the skill under its real
+  name. Earlier runs used a suffixed name (`snapwright-skill-1a2b`), which looks like an odd
+  different skill and got 17-25% recall.
+
+Proposed rewrites are screened for brand names before use: one early proposal put a
+manufacturer's brand in the description, which NOTICE.md rules out.
