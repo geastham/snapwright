@@ -123,9 +123,12 @@ regenerable from `model.json` alone.
 4. (Done in M1: id-buffer visibility per level, per-step turn when parts hide) View choice is per level by centroid only; should score actual visibility of new parts in
    each candidate view (render-mask based) and pick the best.
 5. (Done in M1: max-flow min-cut per load) `necks` metric is heuristic; replace with per-level min-cut on the connection graph.
-6. Catalog availability is tiered, not verified, until `sync-catalog` runs with an API key.
-7. (Done in M1: 2 staggered base layers, tested) Mosaic: flat mode's base layer relies on colour tiles to bridge base plates; add an explicit
+6. (Done in M6: availability from Rebrickable's CSV downloads, no key needed; the packer only uses combos made in sets since 2005) Catalog availability is tiered, not verified, until `sync-catalog` runs with an API key.
+7. (Done in M1: 2 staggered base layers, tested; M6: seams no longer line up through stacked plates at 48 x 48) Mosaic: flat mode's base layer relies on colour tiles to bridge base plates; add an explicit
    staggered base plate layer (or recommend a baseplate) and verify one structure.
 8. (M1: export/re-import round-trip test; LeoCAD screenshot check still in M2) LDraw rotation/origin conventions need a round-trip test in LeoCAD.
 9. (Done in M5) Viewer has no step-by-step mode or new-part highlight yet.
 10. (Done in M4) No CLI `compare` / reference scoring yet (M4).
+11. (Found by the M6 evals) Convex and concave corners of stepped cones (rocket noses, tower
+    roofs) show open triangles where slopes facing different ways meet; needs corner slopes
+    (double convex / double concave). Planned with the M7 packer work.

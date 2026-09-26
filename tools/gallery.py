@@ -46,7 +46,8 @@ def cover(m, cat, path, px=900):
 def main(names):
     cat = Catalog()
     os.makedirs(OUT, exist_ok=True)
-    index = []
+    path = os.path.join(OUT, "gallery.json")
+    index = [e for e in (json.load(open(path)) if os.path.exists(path) else []) if e["example"] not in names]
     for name in names:
         m, out = build(name)
         slug, st = m["meta"]["slug"], m["stats"]
@@ -56,7 +57,7 @@ def main(names):
                       "height_cm": st["height_cm"], "steps": len({s["label"].split(".")[0] for s in m["steps"]}),
                       "passed": st["passed"]})
         print(f"{name}: {st['parts']:,} parts, {st['height_cm']} cm, {'PASS' if st['passed'] else 'FAIL'}")
-    json.dump(index, open(os.path.join(OUT, "gallery.json"), "w"), indent=1)
+    json.dump(sorted(index, key=lambda e: e["example"]), open(path, "w"), indent=1)
 
 
 if __name__ == "__main__":

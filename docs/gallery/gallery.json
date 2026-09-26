@@ -1,0 +1,38 @@
+[
+ {
+  "example": "keep",
+  "slug": "stone-keep",
+  "title": "Stone Keep",
+  "parts": 5193,
+  "height_cm": 45.1,
+  "steps": 55,
+  "passed": true
+ },
+ {
+  "example": "lighthouse",
+  "slug": "harbour-lighthouse",
+  "title": "Harbour Lighthouse",
+  "parts": 1806,
+  "height_cm": 32.6,
+  "steps": 70,
+  "passed": true
+ },
+ {
+  "example": "robot",
+  "slug": "signal-robot",
+  "title": "Signal Robot",
+  "parts": 493,
+  "height_cm": 25.0,
+  "steps": 58,
+  "passed": true
+ },
+ {
+  "example": "rocket",
+  "slug": "little-rocket",
+  "title": "Little Rocket",
+  "parts": 503,
+  "height_cm": 25.3,
+  "steps": 51,
+  "passed": true
+ }
+]
