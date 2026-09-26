@@ -39,3 +39,9 @@ binary), .glb / .gltf (node transforms, base colours). `up="z"` for CAD/STL expo
 Z-up. Closed meshes are filled solid (cell centres inside the surface), open ones keep the
 shell. Colours map to the nearest catalog colour (restrict with `colors=[...]`). Refine the
 result like any design; `hollow()` large solids.
+
+Thin parts (fins, flags, blades thinner than a stud) are kept: the cells the surface passes
+through stay, joined to the body at their roots; pieces touching only along an edge get a
+bridging cell (bricks only join face to face), and a one-stud staircase (a fin at an angle to
+the grid) gets its inside corners filled, so it comes out about two studs wide. Check them in
+the preview; if one matters and looks wrong, rebuild it with `box`/`where` instead.

@@ -26,7 +26,9 @@ Settle: subject and reference, target size (cm) or part budget, audience (kids /
 adult / expert, which sets parts per step), finish (smooth tiled tops or studs), and outputs
 wanted. Defaults: 20-35 cm tall display model, adult, tiled finish, all outputs.
 Rules of thumb: 1 stud = 8 mm, 1 plate = 3.2 mm, 1 brick = 3 plates. Solid sculptures cost
-roughly 1 part per 5-6 voxels; hollow shells far less.
+roughly 1 part per 5-6 voxels; hollow shells far less. For a part budget ("under 400
+pieces"), round outlines and thin 1-stud rails cost the most parts: prefer octagons and
+squares, and make section heights multiples of 3 plates (whole bricks).
 
 ## 2. Design file
 
@@ -61,7 +63,9 @@ least 2 studs wide (compare and preview list 1-stud colour details). Usually 2-5
 Details, including busy backgrounds (`--mask`), in `references/likeness.md`.
 
 If the user has a 3-D model (.obj, .stl, .glb), start from it:
-`model = Model.from_mesh("thing.glb", height_cm=25)` then refine as usual.
+`model = Model.from_mesh("thing.glb", height_cm=25)` (`up="z"` for Z-up files) then refine as
+usual: STL has no colours, so `paint` them (e.g. fins and nose). Parts thinner than a stud
+(fins, flags) come out 1-2 studs thick and joined to the body; check them in the preview.
 
 ## 3. Build and check
 
@@ -81,7 +85,9 @@ large trims or a centre of mass under 3 mm inside the footprint as buildable.
 Report honestly, from the summary: every auto-repair (cells recoloured, overhang cells
 trimmed, tops that got studded plates instead of tiles, an added base), the surface shaping
 (slopes and rounds change the silhouette slightly), weak points (pieces held by 3 studs or
-fewer), single-stud joints, and part-colour combos not verified against a real catalog.
+fewer), single-stud joints, and the part-colour availability line as written (the catalog is
+verified against Rebrickable's set inventories; only call combos verified if the summary
+says so).
 Everything is "checked in software"; nobody has built it until someone builds it.
 Builds are deterministic: the same design file and seeds give the same model. Add
 `--profile` to see where time goes on big models (a 5,000-part model takes ~2 minutes).
@@ -113,6 +119,8 @@ face.box(0, 0, 1, 8, 6, 2, "white")      # outer layer (tiles)
 face.box(1, 1, 1, 3, 3, 2, "black")      # left eye
 ```
 
+Give `top=` (the plate line of its top edge) so the panel lands on the surface across its own
+rows, not a part sticking out lower down; pass `plane=` if that surface steps.
 The model must be solid right behind the panel (anchor rows every 2 studs); `face.mosaic(img)`
 reads upright from the front. Use even heights. The build checks each panel on its own (one
 piece, every part held, at least 2 side studs), shows it in a boxed "sub-build" in the book
@@ -123,9 +131,11 @@ with an attach step, and animates the attach in the viewer. Details in
 
 For "make a mosaic of this photo": `model = Model(48, 48, 3)` then
 `model.mosaic("photo.jpg", mode="flat")`: two staggered base plate layers hold it together
-and the picture is a layer of tiles on top (the grid grows if it is too short). Or
-`mode="upright"` with a height in plates of roughly width x 2.5 for correct aspect. Offer a
-limited palette for a graphic look.
+and the picture is a layer of tiles on top (the grid grows if it is too short). Crop the
+photo to the mosaic's aspect first. Default colours are every opaque colour made as a 1x1
+tile and plate; pass `colors=` for a graphic look. Features thinner than a pixel (a sun's
+reflection, a horizon line) blur into mud: `paint` them back over the mosaic. Or
+`mode="upright"` with a height in plates of roughly width x 2.5 for correct aspect.
 
 ## Files
 
