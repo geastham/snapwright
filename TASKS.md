@@ -18,7 +18,7 @@ Current milestone: **M3 Sideways subassemblies (SNOT)** (branch `m3-snot`). M1 a
       reader for 0.3
 - [x] Book: panel steps in a boxed inset; attach step; renderer draws panels in world views
 - [x] Viewer: panels placed by their transform; attach animation
-- [ ] LDraw export of panels (+ ldraw_check, LeoCAD); BOM includes panel parts
+- [x] LDraw export of panels as MPD submodels (+ ldraw_check, LeoCAD); BOM includes panel parts
 - [ ] Example with a SNOT face; tests (oracles per panel); docs; PR; merge
 
 SNOT facts (official LDraw library): 87087 / 11211 / 30414 side studs sit 10 LDU below the

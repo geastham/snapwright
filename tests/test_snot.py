@@ -93,3 +93,23 @@ def test_panel_mosaic_reads_upright(tmp_path):
     top_row = {pn.palette[v - 1] for v in pn.V[:, 0, 1]}
     bottom_row = {pn.palette[v - 1] for v in pn.V[:, 3, 1]}
     assert top_row == {"red"} and bottom_row == {"blue"}
+
+
+def test_ldraw_mpd_round_trip_and_viewer_data(cat, tmp_path):
+    from snapwright import exporters, pipeline
+    m = model_from_src(HEAD)
+    model, _ = solve(m, catalog=cat, seeds=1)
+    text = exporters.to_ldraw(model, cat)
+    files = exporters.split_mpd(text)
+    assert list(files) == ["robot-head.ldr", "robot-head-face.ldr"]
+    key = lambda p: (p["part"], p["color"], p["x"], p["z"], p["y"], p["dx"], p["dz"], p["h"])  # noqa: E731
+    assert sorted(map(key, exporters.parse_ldraw(text, cat))) == sorted(map(key, model["parts"]))
+    panel = exporters.parse_ldraw(files["robot-head-face.ldr"], cat)
+    assert sorted(map(key, panel)) == sorted(map(key, model["subassemblies"][0]["parts"]))
+    assert text.count("robot-head-face.ldr") == 3          # FILE, Name and the one placement line
+    T, P = exporters.panel_placement(m.panels[0].spec)
+    assert np.isclose(np.linalg.det(P), 1.0)
+    out = tmp_path / "v.html"
+    pipeline.write_viewer(model, str(out), cat)
+    html = out.read_text()
+    assert '"panels":[{"name":"Face"' in html and '"subassemblies"' not in html

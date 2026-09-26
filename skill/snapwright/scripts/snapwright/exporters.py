@@ -38,31 +38,101 @@ def ldraw_line(p, t, col) -> str:
             cx = {0: x + 0.5, 2: x + dx - 0.5}.get(d, x + dx / 2)
             cz = {1: z + 0.5, 3: z + dz - 0.5}.get(d, z + dz / 2)
             X, Z, Y = cx * 20, -cz * 20, -(y + h) * 8
+    elif t.shape == "snot":                         # side studs face `dir`, like a slope's low side
+        m = SLOPE_MATRIX[p.get("dir", 1)]
+        X, Z, Y = (x + dx / 2) * 20, -(z + dz / 2) * 20, -(y + h) * 8
     else:
         m = BOX_MATRIX[p["rot"] if t.shape == "box" else 0]
         X, Z, Y = (x + dx / 2) * 20, -(z + dz / 2) * 20, -(y + h) * 8
     return f"1 {col} {X:g} {Y:g} {Z:g} {m} {t.ldraw or t.id + '.dat'}\n"
 
 
+def panel_placement(spec):
+    """LDraw position and rotation that place a panel submodel (written in its own flat frame)
+    onto the model: world = A (O + R l), A = diag(1, -1, -1) / 0.4 mm per LDU."""
+    import numpy as np
+    A = np.diag([1.0, -1.0, -1.0])
+    T = A @ spec.origin() / 0.4
+    P = A @ spec.rotation() @ A
+    return T, P
+
+
+def _fmt(v):
+    return f"{round(float(v), 4):g}"
+
+
 def to_ldraw(model, catalog) -> str:
+    """LDraw with STEP markers. With sideways panels it is a multi-part file (MPD): each panel is
+    its own submodel with its own steps, placed on the model at its attach step."""
     parts, steps = model["parts"], model["steps"]
+    subs = {sb["name"]: sb for sb in model.get("subassemblies", [])}
     meta = model["meta"]
+    slug = meta.get("slug", "model")
     out = io.StringIO()
-    out.write(f"0 {meta['title']}\n0 Name: {meta.get('slug', 'model')}.ldr\n")
+    if subs:
+        out.write(f"0 FILE {slug}.ldr\n")
+    out.write(f"0 {meta['title']}\n0 Name: {slug}.ldr\n")
     out.write(f"0 Author: {meta.get('author') or 'Snapwright'}\n")
     out.write("0 Unofficial fan design generated with Snapwright. Not affiliated with any brick manufacturer.\n")
     for st in steps:
+        if st.get("kind") == "subassembly":
+            continue
+        if st.get("kind") == "attach":
+            from .snot import PanelSpec
+            T, P = panel_placement(PanelSpec.from_json(subs[st["sub"]]["spec"]))
+            out.write(f"1 16 {' '.join(_fmt(v) for v in T)} {' '.join(_fmt(v) for v in P.ravel())} "
+                      f"{slug}-{_file_name(st['sub'])}.ldr\n")
         for pid in st["parts"]:
             p = parts[pid]
             out.write(ldraw_line(p, catalog.by_id[p["part"]], catalog.colors[p["color"]]["ldraw"]))
         out.write("0 STEP\n")
+    for name, sb in subs.items():
+        out.write(f"0 NOFILE\n0 FILE {slug}-{_file_name(name)}.ldr\n0 {name}\n"
+                  f"0 Name: {slug}-{_file_name(name)}.ldr\n")
+        for st in steps:
+            if st.get("kind") == "subassembly" and st["sub"] == name:
+                for pid in st["parts"]:
+                    q = sb["parts"][pid]
+                    out.write(ldraw_line(q, catalog.by_id[q["part"]], catalog.colors[q["color"]]["ldraw"]))
+                out.write("0 STEP\n")
+    if subs:
+        out.write("0 NOFILE\n")
     return out.getvalue()
+
+
+def _file_name(name):
+    import re
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "panel"
+
+
+def split_mpd(text):
+    """{file name: text} for a multi-part LDraw file; a plain file comes back as {None: text}."""
+    if "0 FILE " not in text:
+        return {None: text}
+    files, name, buf = {}, None, []
+    for line in text.splitlines():
+        if line.startswith("0 FILE "):
+            if name is not None:
+                files[name] = "\n".join(buf)
+            name, buf = line[7:].strip(), []
+        elif line.startswith("0 NOFILE"):
+            if name is not None:
+                files[name] = "\n".join(buf)
+            name, buf = None, []
+        elif name is not None:
+            buf.append(line)
+    if name is not None:
+        files[name] = "\n".join(buf)
+    return files
 
 
 def parse_ldraw(text, catalog):
     """Read an .ldr written by to_ldraw back into grid boxes (the inverse mapping).
     Returns [{part, color, x, z, y, dx, dz, h, rot, dir, step}]. Only handles the axis-aligned
     placements we write; used to check the export round-trips exactly."""
+    files = split_mpd(text)
+    if None not in files:                          # MPD: the first file is the model
+        text = next(iter(files.values()))
     by_ldraw = {c["ldraw"]: k for k, c in catalog.colors.items()}
     by_file = {t.ldraw.lower(): t for t in catalog.parts}
     slope_dir = {v: k for k, v in SLOPE_MATRIX.items()}
@@ -77,11 +147,18 @@ def parse_ldraw(text, catalog):
             continue
         if f[0] != "1":
             continue
+        if f[14].lower() not in by_file:           # a submodel reference (a sideways panel)
+            continue
         col, X, Y, Z = int(f[1]), float(f[2]), float(f[3]), float(f[4])
         m = " ".join(str(int(float(v))) for v in f[5:14])
         t = by_file[f[14].lower()]
         rec = {"part": t.id, "color": by_ldraw[col], "step": step, "h": t.h}
-        if t.shape in ("slope", "slope_inv"):
+        if t.shape == "snot":
+            d = slope_dir[m]
+            dx, dz = (t.L, t.W) if d in (1, 3) else (t.W, t.L)
+            x, z, y = X / 20 - dx / 2, -Z / 20 - dz / 2, -Y / 8 - t.h
+            rec.update(rot=d, dir=d)
+        elif t.shape in ("slope", "slope_inv"):
             d = slope_dir[m]
             dx, dz = (t.L, t.W) if d in (0, 2) else (t.W, t.L)
             cx, cz = X / 20, -Z / 20
