@@ -52,7 +52,7 @@ def test_connection_metadata(cat):
     assert tile.local_cells("top") == set() and len(tile.local_cells("bottom")) == 1
     assert cheese.h == 2 and cheese.local_cells("top") == set()
     for p in cat.parts:                                  # every part is exportable
-        assert p.ldraw.endswith(".dat") and p.shape in ("box", "slope", "slope_inv", "round")
+        assert p.ldraw.endswith(".dat") and p.shape in ("box", "slope", "slope_inv", "round", "snot")
 
 
 def test_place_cells_four_directions(cat):

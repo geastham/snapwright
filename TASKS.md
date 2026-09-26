@@ -1,9 +1,32 @@
 # Tasks
 
-Current milestone: **M2 Parts vocabulary v2** (branch `m2-parts-v2`, stacked on PR #1).
-Spec: SPEC.md §5 M2 plus kickoff notes (connection metadata, renderer, bracing).
+Current milestone: **M3 Sideways subassemblies (SNOT)** (branch `m3-snot`). M1 and M2 merged
+(PRs #1, #3). Spec: SPEC.md §5 M3.
 
-## M2 checklist
+## M3 checklist
+- [x] LeoCAD check of the M2 export (docs/ldraw-check.md)
+- [x] Catalog: side-stud bricks 87087, 11211, 30414 with side-stud metadata (from LDraw)
+- [x] DSL: `model.panel(...)` returns a panel sub-model (own grid, own DSL) on a face of the
+      model; carves its space from the main design; panel mosaics read upright from the front
+- [x] Geometry: panel transform (built flat, tipped onto the face), anchor rows every 2 studs
+      (5 plates) aligned to side studs 5.6 mm above a brick's bottom
+- [x] Packer: side-stud anchor bricks placed behind each panel (claimed before packing)
+- [x] Checks: each panel on its own (one structure, every part held through anchors, >= 2
+      anchor studs), anchors aligned, panel/main collisions, balance including panels
+- [x] Steps: panel steps (`kind: subassembly`) then an `attach` step after the last anchor
+- [x] model.json 0.4: `subassemblies` [{name, side, grid, transform, anchors, parts}];
+      reader for 0.3
+- [ ] Book: panel steps in a boxed inset; attach step; renderer draws panels in world views
+- [ ] Viewer: panels placed by their transform; attach animation
+- [ ] LDraw export of panels (+ ldraw_check, LeoCAD); BOM includes panel parts
+- [ ] Example with a SNOT face; tests (oracles per panel); docs; PR; merge
+
+SNOT facts (official LDraw library): 87087 / 11211 / 30414 side studs sit 10 LDU below the
+top of the brick (5.6 mm above its bottom) on the -Z face, pointing -Z (our +z).
+
+## M2 (done, PRs #2/#3)
+
+### M2 checklist
 - [x] Catalog 0.2: connection metadata per part (top studs / bottom sockets per cell, shape,
       LDraw file + native orientation/origin, BrickLink/Rebrickable ids); reader for 0.1
 - [x] New parts: slopes 45 (3040, 3039), 33 (4286, 3298), cheese 30 (54200, 85984), inverted 45

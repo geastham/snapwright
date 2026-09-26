@@ -59,4 +59,4 @@ def test_shaped_parts_have_per_cell_connectors():
 def test_schema_02_upgrades():
     from snapwright.pipeline import load_model
     m = load_model({"schema": "snapwright.model/0.2", "meta": {}, "parts": [], "steps": [], "stats": {}})
-    assert m["schema"] == "snapwright.model/0.3" and m["meta"]["upgraded_from"] == "snapwright.model/0.2"
+    assert m["schema"] == "snapwright.model/0.4" and m["meta"]["upgraded_from"] == "snapwright.model/0.2"

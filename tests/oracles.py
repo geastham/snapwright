@@ -100,6 +100,8 @@ def check_steps(parts, steps, occ, edges):
     NY = occ.shape[2]
     step_of = {}
     for st in steps:
+        if st.get("sub"):          # a sideways panel's own steps and its attach step
+            continue
         for pid in st["parts"]:
             assert pid not in step_of, f"part {pid} in two steps"
             step_of[pid] = st["n"]

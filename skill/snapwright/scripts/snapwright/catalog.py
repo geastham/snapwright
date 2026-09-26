@@ -21,13 +21,15 @@ class PartType:
     W: int         # short side, studs
     h: int         # height in plates
     studs: bool    # any studs on top
-    shape: str = "box"          # box | slope | slope_inv | round
+    shape: str = "box"          # box | slope | slope_inv | round | snot
     top: object = "all"         # "all" | "none" | ((i, j), ...) cells with a stud on top
     bottom: object = "all"      # "all" | "none" | ((i, j), ...) cells that take a stud underneath
     ldraw: str = ""
     ldraw_origin: str = "top"   # top | stud_row_top | bottom
     lip: float = 0.0            # slopes: height (plates) of the vertical face at the low edge
     auto: bool = False          # may be placed by the surface-shaping pass
+    side: tuple = ()            # cells (i, j) with a stud on the side face (points local +z)
+    side_mm: float = 0.0        # height of the side studs' centres above the part's bottom
     bricklink: str = ""
     rebrickable: str = ""
 
@@ -110,7 +112,7 @@ def _part_type(p: dict) -> PartType:
     defaults: studs on every top cell if `studs`, sockets on every bottom cell."""
     q = dict(p)
     q.setdefault("top", "all" if q.get("studs") else "none")
-    for k in ("top", "bottom"):
+    for k in ("top", "bottom", "side"):
         if isinstance(q.get(k), list):
             q[k] = tuple(tuple(c) for c in q[k])
     q.setdefault("ldraw", q["id"] + ".dat")

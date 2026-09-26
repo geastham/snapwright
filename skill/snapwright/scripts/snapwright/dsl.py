@@ -39,6 +39,7 @@ class Model:
         self.title, self.author, self.subtitle = title, author, subtitle
         self.catalog = catalog or Catalog()
         self.notes: list[str] = []
+        self.panels: list = []
         self._grid()
 
     def _grid(self):
@@ -174,12 +175,67 @@ class Model:
         self.V = np.pad(self.V, ((px0, px1), (pz0, pz1), (layers, 0)))
         self.NX, self.NZ, self.NY = self.V.shape
         self._grid()
+        for pn in self.panels:                       # panels move with the model
+            sp = pn.spec
+            sp.top += layers
+            if sp.ztype:
+                sp.a0 += px0
+                sp.plane += pz0
+            else:
+                sp.a0 += pz0
+                sp.plane += px0
         x0, z0, x1, z1 = x0 + px0, z0 + pz0, x1 + px0, z1 + pz0
         idx = self._idx(color)
         self.V[x0:x1, z0:z1, :layers] = idx
         n = int((x1 - x0) * (z1 - z0) * layers)
         self.notes.append(f"base: {layers} plates of {color} under the footprint (+{margin} studs)")
         return n
+
+    def panel(self, name: str, face: str = "+z", at: int = 0, plane: int | None = None,
+              top: int | None = None, width: int = 4, height: int = 4, depth: int = 2):
+        """A sideways panel (SNOT: studs out) on one face of the model, e.g. a face or a sign.
+
+        It is its own small model: paint it with the usual calls in panel coordinates
+        (x across from the left as seen from the front, z = rows DOWN from the panel's top
+        edge, y = plate layers outward). It is built flat, then attached to side-stud bricks
+        that the build places in the model right behind it.
+
+        face: "+z", "-z", "+x" or "-x" (the way the panel's studs point).
+        at: first stud along the face (x for z faces, z for x faces).
+        plane: the face plane as a stud boundary (default: the model's surface there).
+        top: plate line of the panel's top edge (default: the highest line that fits).
+        width, height: studs across and down (even heights keep both edges on plate lines).
+        depth: plate layers (2 = a plate layer plus a tile layer).
+        The panel's space is carved out of this model. Returns the panel."""
+        from .snot import FACES, PanelSpec
+        f = FACES[face]
+        if plane is None:
+            plane = self._surface_plane(f, at, width)
+        if top is None:
+            top = self.NY
+        spec = PanelSpec(name, f, int(at), int(plane), int(top), int(width), int(height), int(depth))
+        x0, x1, z0, z1, y0, y1 = spec.main_region()
+        if min(x0, z0, y0) < 0 or x1 > self.NX or z1 > self.NZ or y1 > self.NY:
+            raise ValueError(f"panel {name!r} doesn't fit in the model grid: cells x {x0}-{x1}, "
+                             f"z {z0}-{z1}, plates {y0}-{y1}")
+        self.V[x0:x1, z0:z1, y0:y1] = 0
+        p = Panel(width, height, depth, title=name, catalog=self.catalog)
+        p.spec = spec
+        self.panels.append(p)
+        return p
+
+    def _surface_plane(self, f, at, width):
+        """Where the model's surface is on face f across the panel's columns (outermost)."""
+        from .snot import DIR_VEC
+        nx, nz = DIR_VEC[f]
+        occ = self.V > 0
+        if nz:
+            cols = occ[at:at + width].any(axis=(0, 2))            # filled z indices
+            idx = np.nonzero(cols)[0]
+            return int(idx.max() + 1) if nz > 0 else int(idx.min())
+        rows = occ[:, at:at + width].any(axis=(1, 2))
+        idx = np.nonzero(rows)[0]
+        return int(idx.max() + 1) if nx > 0 else int(idx.min())
 
     # ---- images ------------------------------------------------------
     def mosaic(self, image_path: str, colors: list[str] | None = None, mode: str = "flat",
@@ -265,3 +321,21 @@ def dsl_namespace():
     """Names injected into design files."""
     return {"Model": Model, "np": np, "math": math, "mm_to_studs": mm_to_studs,
             "mm_to_plates": mm_to_plates, "STUD_MM": STUD_MM, "PLATE_MM": PLATE_MM}
+
+
+class Panel(Model):
+    """A sideways panel (see Model.panel). Coordinates: x across from the left seen from the
+    front, z rows down from the top edge, y plate layers outward. mosaic() reads upright from
+    the front: the picture's top row is the panel's top edge."""
+
+    spec = None
+
+    def mosaic(self, image_path, colors=None, mode="flat", base_color="black", depth=None,
+               dither=False, base_layers=None):
+        if mode != "flat":
+            raise ValueError("panels take flat mosaics (the panel itself stands up)")
+        base_layers = max(1, self.NY - 1) if base_layers is None else base_layers
+        super().mosaic(image_path, colors=colors, mode="flat", base_color=base_color,
+                       dither=dither, base_layers=base_layers)
+        self.V = np.ascontiguousarray(self.V[:, ::-1, :])      # picture top -> row 0 (top edge)
+        return self
