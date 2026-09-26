@@ -34,10 +34,18 @@ Official-geometry renders (flat shading, painter's algorithm; transparency not d
 
 ## LeoCAD
 
-Not done yet: the Homebrew cask for LeoCAD was disabled on 2026-09-01 because the app fails
-the macOS Gatekeeper check, and installing it by hand would mean overriding Gatekeeper on the
-maintainer's machine. To finish the manual check: open `examples/lighthouse/out/harbour-lighthouse.ldr`
-in LeoCAD (or Studio / Mecabricks), compare with the renders above, and add a screenshot here.
+Checked 2026-09-25 with LeoCAD 26.09 (official macOS release) and the LDraw library 26.08,
+rendering the last step of each exported file from the command line:
+
+```bash
+LeoCAD -l complete.zip -i out.png -w 900 -h 1100 -f LAST -t LAST --viewpoint home model.ldr
+```
+
+Both open without missing parts. Slopes face outward on all four sides of the cone, the
+inverted slopes form the chamfer under the flare, rounds sit centred, and the lighthouse's
+rock base, lantern mullions and roof match the Snapwright renders.
+
+![lighthouse in LeoCAD](ldraw-check/lighthouse-leocad.png) ![shaped model in LeoCAD](ldraw-check/shaped-leocad.png)
 
 ## Orientation facts used by the exporter
 
