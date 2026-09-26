@@ -16,7 +16,7 @@ Current milestone: **M5 Book and viewer polish** (branch `m5-polish`). M1-M4 mer
       exploded view of sideways panels, record-to-video (WebM), no fetches beyond three.js
 - [x] Viewer accessibility: colour names with swatches, labelled controls
 - [x] Tests, visual inspection (PDF pages, viewer screenshots), docs
-- [ ] PR, merge
+- [x] PR #6, merged
 
 ## M4 (done, PR #5)
 
