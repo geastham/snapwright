@@ -5,7 +5,7 @@ import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TESTS = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(ROOT, "skill", "snapwright", "scripts"))
+sys.path.insert(0, os.path.join(ROOT, "skills", "snapwright", "scripts"))
 sys.path.insert(0, TESTS)
 
 from snapwright.catalog import Catalog  # noqa: E402

@@ -6,7 +6,7 @@ import sys
 
 from conftest import ROOT
 
-SW = os.path.join(ROOT, "skill", "snapwright", "scripts", "sw.py")
+SW = os.path.join(ROOT, "skills", "snapwright", "scripts", "sw.py")
 GOOD = '''model = Model(8, 8, 9, title="Cli Test")
 model.box(0, 0, 0, 8, 8, 3, "dark_bluish_gray")
 model.cylinder(4, 4, 3.5, 3, 9, "white", inner_r=1.5)

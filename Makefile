@@ -1,4 +1,4 @@
-SW = python skill/snapwright/scripts/sw.py
+SW = python skills/snapwright/scripts/sw.py
 
 .PHONY: setup test example preview package clean bench ldraw-check
 setup:
@@ -10,7 +10,7 @@ preview:
 example:
 	$(SW) build examples/lighthouse/design.py --out examples/lighthouse/out --seeds 6
 package:
-	mkdir -p dist && cd skill && zip -rq ../dist/snapwright.skill snapwright -x '*/__pycache__/*' '*.DS_Store' '*/.rebrickable/*' '*.tmp'
+	mkdir -p dist && cd skills && zip -rq ../dist/snapwright.skill snapwright -x '*/__pycache__/*' '*.DS_Store' '*/.rebrickable/*' '*.tmp'
 clean:
 	rm -rf examples/*/out creations/*/out dist .pytest_cache
 bench:

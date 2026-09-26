@@ -14,7 +14,7 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(ROOT, "skill", "snapwright", "scripts"))
+sys.path.insert(0, os.path.join(ROOT, "skills", "snapwright", "scripts"))
 
 from snapwright.book import Book  # noqa: E402
 from snapwright.catalog import Catalog  # noqa: E402
@@ -29,7 +29,7 @@ def build(name):
     model = os.path.join(d, "out", "model.json")
     design = os.path.join(d, "design.py")
     if not os.path.exists(model) or os.path.getmtime(model) < os.path.getmtime(design):
-        subprocess.run([sys.executable, os.path.join(ROOT, "skill", "snapwright", "scripts", "sw.py"), "build",
+        subprocess.run([sys.executable, os.path.join(ROOT, "skills", "snapwright", "scripts", "sw.py"), "build",
                         design, "--out", os.path.join(d, "out"), "--seeds", str(SEEDS.get(name, 8))], check=True)
     return json.load(open(model)), os.path.join(d, "out")
 

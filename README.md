@@ -29,9 +29,9 @@ Regenerate the gallery with `python tools/gallery.py`.
 make setup
 make test           # unit, regression-fixture, property and golden tests (~40 s)
 make example        # builds examples/lighthouse/out/
-python skill/snapwright/scripts/sw.py preview my_design.py --out out/preview
-python skill/snapwright/scripts/sw.py compare my_design.py --ref photo.jpg   # likeness score
-python skill/snapwright/scripts/sw.py build   my_design.py --out out --audience family
+python skills/snapwright/scripts/sw.py preview my_design.py --out out/preview
+python skills/snapwright/scripts/sw.py compare my_design.py --ref photo.jpg   # likeness score
+python skills/snapwright/scripts/sw.py build   my_design.py --out out --audience family
 ```
 
 Install as a Claude skill: `make package` → upload `dist/snapwright.skill` (about 110 KB).
@@ -41,7 +41,7 @@ appeared in since 2005), and the packer only uses combos that exist. Refresh it 
 `sw.py sync-catalog` (downloads the free CSV dumps; `--key` uses the API instead). See
 CONTRIBUTING.md for adding parts and running the evals.
 
-Layout: `skill/snapwright/` (the skill), `examples/`, `creations/` (our own builds),
+Layout: `skills/snapwright/` (the skill), `examples/`, `creations/` (our own builds),
 `evals/`, `tests/`, `docs/`. Roadmap and acceptance criteria: `SPEC.md`.
 
 Unofficial and independent; see NOTICE.md. Checked in software only: build before you trust it.

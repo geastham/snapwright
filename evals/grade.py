@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Grade an eval iteration: writes grading.json next to each run's outputs/.
 
-  python evals/grade.py skill/snapwright-workspace/iteration-N
+  python evals/grade.py skills/snapwright-workspace/iteration-N
 
 Geometry assertions are checked with Snapwright's own validator on every run, skill or not:
 a snapwright model.json is validated as is; other runs' parts (a box list in their JSON, or an
@@ -17,7 +17,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(ROOT, "skill", "snapwright", "scripts"))
+sys.path.insert(0, os.path.join(ROOT, "skills", "snapwright", "scripts"))
 
 from snapwright.validate import validate  # noqa: E402
 

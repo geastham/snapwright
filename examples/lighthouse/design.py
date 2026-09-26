@@ -1,7 +1,7 @@
 # Snapwright design file: a striped lighthouse on a rocky base (original, generic subject).
 # Units: x/z in studs (8 mm), y in plates (3.2 mm). 3 plates = 1 brick.
-# Run:  python skill/snapwright/scripts/sw.py preview examples/lighthouse/design.py --out out/lh
-#       python skill/snapwright/scripts/sw.py build   examples/lighthouse/design.py --out out/lh
+# Run:  python skills/snapwright/scripts/sw.py preview examples/lighthouse/design.py --out out/lh
+#       python skills/snapwright/scripts/sw.py build   examples/lighthouse/design.py --out out/lh
 
 model = Model(22, 22, 102, title="Harbour Lighthouse",
               subtitle="An original brick-built display model", author="Open Conjecture")

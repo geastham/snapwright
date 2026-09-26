@@ -27,7 +27,7 @@ reference (photo/sketch/text)
   → instructions.pdf                            book.py
 ```
 Canonical artifact: `model.json` (schema `snapwright.model/0.2`; 0.1 still read; see
-`skill/snapwright/references/geometry-and-checks.md`). Every downstream output must be
+`skills/snapwright/references/geometry-and-checks.md`). Every downstream output must be
 regenerable from `model.json` alone.
 
 ## 4. Status of the v0.1 scaffold (what exists and runs)
@@ -96,7 +96,7 @@ regenerable from `model.json` alone.
 - Accessibility: colour names alongside swatches, never colour alone.
 
 ### M6 Publishable skill
-- `skill/snapwright` is self-contained, < 2 MB, installs via `.skill` package.
+- `skills/snapwright` is self-contained, < 2 MB, installs via `.skill` package.
 - `evals/evals.json` (≥ 6 prompts incl. mosaic, kids model, photo sculpture, IP decline) run
   with skill-creator; description tuned for triggering.
 - README with gallery (cover PNGs + viewer links), NOTICE, LICENSE, CONTRIBUTING.

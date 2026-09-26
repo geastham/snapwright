@@ -23,5 +23,5 @@ implementation.
 
 ## Third-party software
 
-The 3D viewer embeds three.js 0.170.0 (`skill/snapwright/assets/vendor/`), MIT License,
+The 3D viewer embeds three.js 0.170.0 (`skills/snapwright/assets/vendor/`), MIT License,
 (c) 2010-2024 three.js authors; see `assets/vendor/LICENSE-three.txt`.

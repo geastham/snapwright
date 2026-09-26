@@ -1,7 +1,7 @@
 # Working in this repo (for coding agents)
 
 - Read SPEC.md first; it defines milestones, acceptance criteria and the known-issues backlog.
-- The installable skill is `skill/snapwright/`. Everything it needs at runtime lives inside it.
+- The installable skill is `skills/snapwright/`. Everything it needs at runtime lives inside it.
   Anything outside (tests, examples, creations, docs) is for development only.
 - Runtime deps stay limited to numpy, scipy, pillow, reportlab. No network at runtime except
   the optional `sync-catalog` command. No GPU.

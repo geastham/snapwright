@@ -12,7 +12,7 @@ make test           # ~40 s on a laptop, all cores
 make example        # builds examples/lighthouse/out/ (must PASS)
 ```
 
-Runtime code (everything under `skill/snapwright/`) may only use numpy, scipy, pillow and
+Runtime code (everything under `skills/snapwright/`) may only use numpy, scipy, pillow and
 reportlab, may not use the network (except `sw.py sync-catalog`), and may not need a GPU. The
 skill must run in the claude.ai sandbox and stay under 2 MB zipped (`make package`).
 
@@ -36,11 +36,11 @@ skill must run in the claude.ai sandbox and stay under 2 MB zipped (`make packag
   re-implementations of the invariants; don't make it import the code it checks.
 - **Look at the outputs.** Tests don't catch an ugly page. For book or viewer changes, render
   some pages (`pdftoppm -r 60 -f 1 -l 6 book.pdf page`) and open the viewer before sending.
-- Keep `SKILL.md` under 500 lines; put detail in `skill/snapwright/references/`.
+- Keep `SKILL.md` under 500 lines; put detail in `skills/snapwright/references/`.
 
 ## Names, brands and third-party work
 
-Read `NOTICE.md` and `skill/snapwright/references/ip-and-naming.md`. In short:
+Read `NOTICE.md` and `skills/snapwright/references/ip-and-naming.md`. In short:
 
 - No toy-brick manufacturer brand in any name, title, file name, UI string, example or test.
   Say "brick", "interlocking brick", "compatible bricks".
@@ -58,14 +58,14 @@ assets.
 
 ## The parts catalog
 
-`skill/snapwright/assets/catalog.json` lists the parts and colours the packer may use, with
+`skills/snapwright/assets/catalog.json` lists the parts and colours the packer may use, with
 connection metadata (`top`, `bottom`, `side`), LDraw file names and origins, and marketplace
 ids. To add a part:
 
 1. Add the entry. Check its size, origin and stud/socket cells against the LDraw part
    (`tools/ldraw_check.py`, see `docs/ldraw-check.md`).
 2. If Rebrickable numbers it differently, set `rebrickable` (for example 4073 is 6141 there).
-3. Refresh availability: `python skill/snapwright/scripts/sw.py sync-catalog`. It downloads
+3. Refresh availability: `python skills/snapwright/scripts/sw.py sync-catalog`. It downloads
    Rebrickable's free CSV dumps (about 16 MB, cached in `assets/.rebrickable/`, which git
    ignores) and records which colours the part has appeared in since 2005. With
    `--key YOUR_KEY` it uses the Rebrickable API instead. Commit the updated `catalog.json`.

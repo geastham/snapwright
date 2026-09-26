@@ -6,11 +6,11 @@ lamp that tips over and a gatehouse. The prompts were run with the skill-creator
 by a fresh agent **with** the skill and **without** it (the baseline may write its own
 tools). `evals/grade.py` grades every run with Snapwright's own validator: other runs' parts
 are converted to grid boxes first, so "the model passes" means the same thing for both
-configurations. Workspaces (`skill/snapwright-workspace/`) are git-ignored.
+configurations. Workspaces (`skills/snapwright-workspace/`) are git-ignored.
 
 ```bash
-python evals/grade.py skill/snapwright-workspace/iteration-N
-python -m scripts.aggregate_benchmark skill/snapwright-workspace/iteration-N --skill-name snapwright   # from skill-creator
+python evals/grade.py skills/snapwright-workspace/iteration-N
+python -m scripts.aggregate_benchmark skills/snapwright-workspace/iteration-N --skill-name snapwright   # from skill-creator
 ```
 
 ## Results
