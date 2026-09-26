@@ -87,7 +87,40 @@ def preview(design, out, views=(0, 1, 2, 3), catalog=None, size=700):
     print(f"{m.title}: {m.voxel_count():,} voxels, ~{w} x {d} x {h} cm (w x d x h), "
           f"colours: {', '.join(m.palette)}")
     _warn_islands(m, print)
+    _warn_thin(m, print)
     return paths
+
+
+def _warn_thin(m, log):
+    thin = m.thin_details()
+    if thin:
+        eg = ", ".join(f"{t['color']} at {t['at']}" for t in thin[:3])
+        log(f"  note: {len(thin)} colour details are only 1 stud across ({eg}{', ...' if len(thin) > 3 else ''}); "
+            f"make features that matter at least 2 studs")
+
+
+def compare(design, ref, out, mask=None, catalog=None):
+    """Compare a design with a reference picture: writes compare.png / compare.json in `out`."""
+    from .compare import compare as run
+    cat = catalog or Catalog()
+    m = load_design(design, cat)
+    os.makedirs(out, exist_ok=True)
+    res = run(m, ref, cat, mask_path=mask, out_png=os.path.join(out, "compare.png"))
+    res["thin_details"] = len(m.thin_details())
+    with open(os.path.join(out, "compare.json"), "w") as f:
+        json.dump(res, f, indent=1)
+    v = res["view"]
+    ok = res["iou"] >= res["target"]
+    print(f"{m.title}: silhouette IoU {res['iou']:.2f} ({'meets' if ok else 'below'} the {res['target']} target), "
+          f"best view azimuth {v['azimuth']:.0f}, elevation {v['elevation']:.0f}"
+          + (f", colour agreement {res['colour_agreement']:.0%}" if res["colour_agreement"] is not None else ""))
+    if res["reference"].get("warning"):
+        print(f"  reference: {res['reference']['warning']}")
+    for h in res["hints"]:
+        print(f"  - {h}")
+    _warn_thin(m, print)
+    print(f"  side by side -> {os.path.join(out, 'compare.png')}")
+    return res
 
 
 def _warn_islands(m, log):

@@ -71,6 +71,43 @@ class Model:
         self.V[mask] = self._idx(color)
         return self
 
+    @classmethod
+    def from_mesh(cls, path: str, height_cm: float | None = 20.0, width_cm: float | None = None,
+                  up: str = "y", colors: list[str] | None = None,
+                  default_color: str = "light_bluish_gray", fill: bool = True,
+                  title: str | None = None, author: str = "", catalog: Catalog | None = None):
+        """A design from a 3-D model file (.obj with .mtl colours, .stl, .glb / .gltf).
+
+        Scaled so the model is `height_cm` tall (or `width_cm` wide / deep if given), turned so
+        `up` ("y", "z", "-z" or "x") points up, voxelised on the stud / plate grid, closed
+        shells filled solid. Material colours map to the nearest catalog colour (from `colors`
+        if given, else the core opaque colours); uncoloured parts get `default_color`. Refine
+        the result with the usual calls (paint, carve, hollow...)."""
+        import os
+        from .mesh import load_mesh, orient, voxelize
+        cat = catalog or Catalog()
+        tris, cols = load_mesh(path)
+        tris = orient(tris, up)
+        lo, hi = tris.reshape(-1, 3).min(0), tris.reshape(-1, 3).max(0)
+        ext = np.maximum(hi - lo, 1e-9)
+        scale = (width_cm * 10 / max(ext[0], ext[2])) if width_cm else (height_cm * 10 / ext[1])
+        tris = (tris - lo) * scale
+        keys = colors or [k for k, c in cat.colors.items() if c["tier"] == "core" and not k.startswith("trans")]
+        m = cls(1, 1, 1, title=title or os.path.splitext(os.path.basename(path))[0].replace("_", " ").title(),
+                author=author, catalog=cat)
+        lut = {}
+        idx = np.empty(len(tris), dtype=np.int16)
+        for i, c in enumerate(cols):
+            if c not in lut:
+                lut[c] = m._idx(cat.nearest(c, keys) if c is not None else default_color)
+            idx[i] = lut[c]
+        V = voxelize(tris, idx, ext * scale, fill=fill)
+        m.NX, m.NZ, m.NY = V.shape
+        m.V = V
+        m._grid()
+        m.notes.append(f"from mesh {os.path.basename(path)}: {len(tris):,} triangles, scaled x{scale:.3g}")
+        return m
+
     # ---- solids ------------------------------------------------------
     def box(self, x0, z0, y0, x1, z1, y1, color):
         """Axis-aligned box, half-open: covers x0 <= x < x1 (studs), y0 <= y < y1 (plates)."""
@@ -310,6 +347,26 @@ class Model:
             lo, hi = idx.min(0), idx.max(0) + 1
             out.append({"voxels": int(len(idx)), "x": [int(lo[0]), int(hi[0])],
                         "z": [int(lo[1]), int(hi[1])], "y": [int(lo[2]), int(hi[2])]})
+        return out
+
+    def thin_details(self) -> list[dict]:
+        """Visible colour details only 1 stud across (a single speck, or a 1 x 1 stud line):
+        they read poorly and are the first thing a repair recolours. Returns
+        [{color, cells, at: (x, z, y)}]."""
+        from scipy import ndimage
+        from .brickify import exterior_visible, see_through
+        vis = exterior_visible(self.V, see_through(self.V, self.palette))
+        out = []
+        for i, key in enumerate(self.palette, start=1):
+            lab, n = ndimage.label(vis & (self.V == i))
+            if not n:
+                continue
+            for k, sl in enumerate(ndimage.find_objects(lab), start=1):
+                dx, dz = sl[0].stop - sl[0].start, sl[1].stop - sl[1].start
+                size = int((lab[sl] == k).sum())
+                if size <= 2 or (dx == 1 and dz == 1):
+                    out.append({"color": key, "cells": size,
+                                "at": (sl[0].start, sl[1].start, sl[2].start)})
         return out
 
     def voxel_count(self) -> int:
