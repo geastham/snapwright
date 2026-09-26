@@ -68,12 +68,13 @@ def fit(shape, W, H, pad=0.06):
 
 def render_grid(G, colors, studs, highlight=None, ghost=None, size=(900, 900), view=0,
                 framing=None, bg=(255, 255, 255, 0), ss=2, fade=None, geom=None, stud_grid=None,
-                boxes=None):
+                boxes=None, xray=None):
     """G: int grid (x, z, y) of ids (-1 empty). colors[id] -> hex, studs[id] -> bool.
     highlight: set of ids drawn with accent outline. fade: set of ids drawn washed out.
     framing: (shape, W, H) to keep scale fixed across steps (use the full model).
     geom: {id: part dict} for shaped parts (slopes, rounds), in G's frame (so view must be 0;
     use render_parts to rotate). stud_grid: per-cell studs on top, overriding `studs`.
+    xray: part ids to outline dashed on top of everything (new parts hidden in this view).
     boxes: extra world boxes (mm, in G's frame) drawn in depth order with the cells, e.g.
     sideways panels: {lo, hi, color, hl, faces: subset of top/fx/fz, same: directions whose
     neighbour belongs to the same part (no outline there)}."""
@@ -221,6 +222,7 @@ def render_grid(G, colors, studs, highlight=None, ghost=None, size=(900, 900), v
     if not boxes:
         for i, row in enumerate(rows):
             draw_cell(i, row)
+        _xray(d, G, xray, P3, hw)
     else:
         seq = [(float(depth[i]), 0, i) for i in range(len(rows))]
         for b, bx in enumerate(boxes):
@@ -232,7 +234,35 @@ def render_grid(G, colors, studs, highlight=None, ghost=None, size=(900, 900), v
                 draw_cell(k, rows[k])
             else:
                 draw_box(boxes[k])
+        _xray(d, G, xray, P3, hw)
     return img.resize((W, H), Image.LANCZOS)
+
+
+def _xray(d, G, ids, P3, width):
+    """Dashed accent outline of each part's box, drawn over everything: shows where a new part
+    goes when the view can't show the part itself."""
+    for pid in ids or ():
+        cells = np.argwhere(G == pid)
+        if not len(cells):
+            continue
+        (x0, z0, y0), (x1, z1, y1) = cells.min(0), cells.max(0) + 1
+        X = (x0 * STUD_MM, x1 * STUD_MM)
+        Y = (y0 * PLATE_MM, y1 * PLATE_MM)
+        Z = (z0 * STUD_MM, z1 * STUD_MM)
+        corners = {(a, b, c): P3((X[a], Y[b], Z[c])) for a in (0, 1) for b in (0, 1) for c in (0, 1)}
+        for (a, b, c), p in corners.items():
+            for q in ((1 - a, b, c), (a, 1 - b, c), (a, b, 1 - c)):
+                if q > (a, b, c):
+                    _dashed(d, p, corners[q], ACCENT, max(2, width // 2))
+
+
+def _dashed(d, p, q, fill, width, dash=6.0):
+    (x0, y0), (x1, y1) = p, q
+    n = max(1, int(math.hypot(x1 - x0, y1 - y0) / dash))
+    for k in range(0, n, 2):
+        t0, t1 = k / n, min(1.0, (k + 1) / n)
+        d.line([(x0 + (x1 - x0) * t0, y0 + (y1 - y0) * t0), (x0 + (x1 - x0) * t1, y0 + (y1 - y0) * t1)],
+               fill=fill, width=width)
 
 
 # ---- shaped parts: slopes, inverted slopes, rounds ---------------------------------------
@@ -511,8 +541,13 @@ def render_parts(parts, shape, colors, catalog=None, view=0, panels=None, **kw):
     boxes = []
     for pn in panels or []:
         boxes += panel_boxes(pn["spec"], pn["parts"], pn["colors"], shape, view, pn.get("hl", False))
+    hl = kw.get("highlight") or set()
+    xray = None
+    if hl:                                   # new parts this view can't show get an x-ray outline
+        seen = visible_samples(G, 0)
+        xray = {pid for pid in hl if seen.get(pid, 0) < 2}
     return render_grid(G, colors, {}, geom=geom, stud_grid=stud_grid_of(rp, rshape),
-                       framing=framing, view=0, boxes=boxes, **kw)
+                       framing=framing, view=0, boxes=boxes, xray=xray, **kw)
 
 
 def visible_samples(G, view=0, spp=4):

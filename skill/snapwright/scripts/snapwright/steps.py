@@ -197,3 +197,32 @@ def choose_views(parts, steps, shape, min_gain=0.15):
                 best = max(range(4), key=lambda k: (shown[k], k == view))
                 if shown[best] > shown[view]:
                     st["view"] = best
+
+
+def label_and_bag(steps, bag_size=150, min_group=2):
+    """Number steps the way a reader follows them, and split them into bags.
+
+    Consecutive pictures of the same plate level (or of the same sideways panel) form one
+    numbered step; when that takes more than one picture they become sub-steps 12.1, 12.2 ...
+    Bags hold about `bag_size` parts in build order and only break between numbered
+    steps, so a reader never needs two bags open for one step. Sets `label` and `bag` on every
+    step; returns the number of numbered steps."""
+    groups = []
+    for st in steps:
+        key = ("panel", st["sub"]) if st.get("kind") == "subassembly" else \
+              ("attach", st["n"]) if st.get("kind") == "attach" else ("level", st.get("level"))
+        if groups and groups[-1][0] == key:
+            groups[-1][1].append(st)
+        else:
+            groups.append((key, [st]))
+    bag, in_bag = 1, 0
+    for num, (key, sts) in enumerate(groups, start=1):
+        size = sum(len(st["parts"]) for st in sts)
+        if in_bag and in_bag + size > bag_size * 1.15:
+            bag, in_bag = bag + 1, 0
+        in_bag += size
+        split = len(sts) >= (2 if key[0] == "panel" else min_group)
+        for k, st in enumerate(sts, start=1):
+            st["label"] = f"{num}.{k}" if split else str(num)
+            st["bag"] = bag
+    return len(groups)

@@ -4,14 +4,14 @@ Current milestone: **M5 Book and viewer polish** (branch `m5-polish`). M1-M4 mer
 #3, #4, #5). Spec: SPEC.md §5 M5.
 
 ## M5 checklist
-- [ ] PDF < 5 MB for 2,000 parts (lighthouse 5.5 MB, keep 20.5 MB at the start of M5)
-- [ ] Sub-step numbering for big levels (12.1, 12.2 ... when a level takes 3+ steps)
-- [ ] Bags of ~150 parts in build order, each opening with a "parts for this bag" page;
+- [x] PDF < 5 MB for 2,000 parts (lighthouse 5.5 MB, keep 20.5 MB at the start of M5)
+- [x] Sub-step numbering for big levels (12.1, 12.2 ... when a level takes 3+ steps)
+- [x] Bags of ~150 parts in build order, each opening with a "parts for this bag" page;
       step pages show the bag
-- [ ] Page-level progress bar
-- [ ] Colour names next to every callout icon (never colour alone); inventory already named
-- [ ] X-ray outline for a new part still hidden in its step's view (carried from M1)
-- [ ] A4 and Letter both laid out correctly
+- [x] Page-level progress bar
+- [x] Colour names next to every callout icon (never colour alone); inventory already named
+- [x] X-ray outline for a new part still hidden in its step's view (carried from M1)
+- [x] A4 and Letter both laid out correctly
 - [ ] Viewer: step-by-step mode (prev/next buttons and arrow keys), new parts highlighted,
       exploded view of sideways panels, record-to-video (WebM), no fetches beyond three.js
 - [ ] Viewer accessibility: colour names with swatches, labelled controls
