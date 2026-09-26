@@ -53,6 +53,9 @@ regenerable from `model.json` alone.
   MPD LDraw export; `examples/robot`; schema snapwright.model/0.4
 - After M4: `sw.py compare` (silhouette IoU from the best view, hints, side by side),
   thin-detail notes, `Model.from_mesh` (OBJ/STL/GLB, numpy voxeliser)
+- After M5: book sub-steps, bags with parts pages, progress bar, named colours on callouts,
+  x-ray outlines, exact-colour images (lighthouse PDF 3.6 MB); viewer step mode with
+  highlight, exploded panels, record to WebM
 
 ## 5. Milestones and acceptance criteria
 
@@ -111,7 +114,7 @@ regenerable from `model.json` alone.
 - Own visual identity; no manufacturer names or trade dress.
 
 ## 7. Known issues / backlog from v0.1
-1. (M1: 10.2 → 4.9 MB via indexed-colour images; M5 continues) Instruction PDF is ~10 MB for 1.7k parts: switch step images to JPEG-in-PDF or smaller
+1. (M1: 10.2 → 4.9 MB; M5: 3.6 MB with exact-colour images; done) Instruction PDF is ~10 MB for 1.7k parts: switch step images to JPEG-in-PDF or smaller
    indexed PNGs; cache repeated renders.
 2. (M2: slopes on tapers, `Model.hollow()`; hollowing saves plastic, not parts) Parts count is high for solid shapes (no hollowing yet) and tall tapers become plate stacks
    (no slopes yet).
@@ -124,5 +127,5 @@ regenerable from `model.json` alone.
 7. (Done in M1: 2 staggered base layers, tested) Mosaic: flat mode's base layer relies on colour tiles to bridge base plates; add an explicit
    staggered base plate layer (or recommend a baseplate) and verify one structure.
 8. (M1: export/re-import round-trip test; LeoCAD screenshot check still in M2) LDraw rotation/origin conventions need a round-trip test in LeoCAD.
-9. Viewer has no step-by-step mode or new-part highlight yet.
+9. (Done in M5) Viewer has no step-by-step mode or new-part highlight yet.
 10. (Done in M4) No CLI `compare` / reference scoring yet (M4).

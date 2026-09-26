@@ -1,9 +1,26 @@
 # Tasks
 
-Current milestone: **M4 Reference-to-design quality loop** (branch `m4-likeness`). M1-M3 merged
-(PRs #1, #3, #4). Spec: SPEC.md §5 M4.
+Current milestone: **M5 Book and viewer polish** (branch `m5-polish`). M1-M4 merged (PRs #1,
+#3, #4, #5). Spec: SPEC.md §5 M5.
 
-## M4 checklist
+## M5 checklist
+- [x] PDF < 5 MB for 2,000 parts (lighthouse 5.5 MB, keep 20.5 MB at the start of M5)
+- [x] Sub-step numbering for big levels (12.1, 12.2 ... when a level takes 3+ steps)
+- [x] Bags of ~150 parts in build order, each opening with a "parts for this bag" page;
+      step pages show the bag
+- [x] Page-level progress bar
+- [x] Colour names next to every callout icon (never colour alone); inventory already named
+- [x] X-ray outline for a new part still hidden in its step's view (carried from M1)
+- [x] A4 and Letter both laid out correctly
+- [x] Viewer: step-by-step mode (prev/next buttons and arrow keys), new parts highlighted,
+      exploded view of sideways panels, record-to-video (WebM), no fetches beyond three.js
+- [x] Viewer accessibility: colour names with swatches, labelled controls
+- [x] Tests, visual inspection (PDF pages, viewer screenshots), docs
+- [ ] PR, merge
+
+## M4 (done, PR #5)
+
+### M4 checklist
 - [x] Reference silhouette: alpha channel, `--mask`, or border-colour background model with a
       busy-background warning; morphology cleanup, largest component, holes filled
 - [x] Model silhouette + colour render from any azimuth/elevation (orthographic, z-buffered,
@@ -18,7 +35,7 @@ Current milestone: **M4 Reference-to-design quality loop** (branch `m4-likeness`
       (materials, node transforms); numpy-only voxelisation (surface sampling + fill)
 - [x] Tests with generated references and meshes (no third-party files); SKILL.md loop
       guidance (IoU >= 0.8, features >= 2 studs); docs (references/likeness.md)
-- [ ] PR; merge
+- [x] PR #5; merged
 
 ## M3 (done, PR #4)
 

@@ -25,6 +25,7 @@ LINE = HexColor("#d9dcde")
 ACC = HexColor("#ff4628")
 PAPER = HexColor("#fbfaf7")
 INSET = HexColor("#f1f4f6")
+STEP_PX = 520          # step renders: ~140 dpi at their printed size
 
 
 def _img(pil):
@@ -55,6 +56,24 @@ class Book:
                                      "grid": tuple(sb["grid"]),
                                      "colors": {q["id"]: catalog.colors[q["color"]]["hex"] for q in sb["parts"]}}
         self.attach_at = {st["sub"]: st["n"] for st in model["steps"] if st.get("kind") == "attach"}
+        self.pal = self._palette()
+        if any("label" not in st or "bag" not in st for st in model["steps"]):
+            from .steps import label_and_bag
+            label_and_bag(model["steps"])
+        self.bags = max((st["bag"] for st in model["steps"]), default=1)
+        self.numbered = len({(st["label"].split(".")[0]) for st in model["steps"]})
+
+    def _palette(self):
+        """Every colour the renderer draws for this model (face shades, studs, edges, accent,
+        paper): images are stored in exactly these colours."""
+        from .render import ACCENT, _edge_col, _lift, _shade
+        from .catalog import hex_to_rgb
+        out = {(251, 250, 247), ACCENT, (255, 255, 255), (107, 116, 121)}
+        for key in {p["color"] for p in self.all_parts()}:
+            b = hex_to_rgb(self.cat.colors[key]["hex"])
+            out |= {b, _lift(b, 0.12), _lift(b, 0.04), _lift(b, 0.22), _shade(b, 0.62), _shade(b, 0.8),
+                    _shade(b, 0.72), _edge_col(b)}
+        return sorted(out)
 
     def all_parts(self):
         return self.m["parts"] + [q for sb in self.subs.values() for q in sb["parts"]]
@@ -109,7 +128,7 @@ class Book:
         self._page(footer=False)
         c, W, H, meta, st = self.c, self.W, self.H, self.m["meta"], self.m["stats"]
         n = len(self.m["steps"])
-        draw_indexed(c, self.render(n, view=0, px=1100), 36, 150, W - 72, W - 72)
+        draw_indexed(c, self.render(n, view=0, px=1100), 36, 150, W - 72, W - 72, palette=self.pal)
         c.setFillColor(INK)
         c.setFont("Helvetica-Bold", 34)
         c.drawString(40, H - 78, meta["title"])
@@ -119,7 +138,8 @@ class Book:
             c.drawString(42, H - 100, meta["subtitle"])
         c.setFont("Helvetica-Bold", 11)
         c.setFillColor(INK)
-        line = (f"{st['parts']:,} parts   ·   {st['height_cm']} cm tall   ·   {n} steps   ·   "
+        bags = f"   ·   {self.bags} bags" if self.bags > 1 else ""
+        line = (f"{st['parts']:,} parts   ·   {st['height_cm']} cm tall   ·   {self.numbered} steps{bags}   ·   "
                 f"{st['unique_lots']} lots")
         c.drawString(42, 120, line)
         c.setFont("Helvetica", 8)
@@ -129,27 +149,59 @@ class Book:
             c.drawString(42, 88, f"Design: {meta['author']}")
 
     def inventory(self):
-        rows = Counter((p["part"], p["color"]) for p in self.all_parts())
+        self._parts_pages(Counter((p["part"], p["color"]) for p in self.all_parts()), "Parts")
+
+    def _parts_pages(self, rows, title, subtitle=None, dense=False):
+        """Grid of part icons with quantity, name, colour name and part number."""
         items = sorted(rows.items(), key=lambda kv: (kv[0][1], kv[0][0]))
-        cols, cw, ch = 3, (self.W - 72) / 3, 74
-        per_page = cols * int((self.H - 150) // ch)
+        cols, ch = (4, 58) if dense else (3, 74)
+        cw = (self.W - 72) / cols
+        iw, ih = (52, 41) if dense else (70, 55)
+        top = 110 if subtitle else 90
+        per_page = cols * int((self.H - top - 60) // ch)
         for start in range(0, len(items), per_page):
             self._page()
             c = self.c
             c.setFillColor(INK)
             c.setFont("Helvetica-Bold", 18)
-            c.drawString(36, self.H - 56, "Parts" if start == 0 else "Parts (continued)")
+            c.drawString(36, self.H - 56, title if start == 0 else f"{title} (continued)")
+            if subtitle:
+                c.setFont("Helvetica", 10)
+                c.setFillColor(SOFT)
+                c.drawString(36, self.H - 74, subtitle)
             for k, ((pid, col), q) in enumerate(items[start:start + per_page]):
                 r, cc = divmod(k, cols)
-                x, y = 36 + cc * cw, self.H - 90 - (r + 1) * ch
-                draw_indexed(c, self.icon(pid, col), x, y + 14, 70, 55)
+                x, y = 36 + cc * cw, self.H - top - (r + 1) * ch
+                draw_indexed(c, self.icon(pid, col), x, y + 14, iw, ih)
+                tx = x + iw + 4
                 c.setFillColor(INK)
-                c.setFont("Helvetica-Bold", 12)
-                c.drawString(x + 74, y + 48, f"{q}x")
-                c.setFont("Helvetica", 7.5)
+                c.setFont("Helvetica-Bold", 11 if dense else 12)
+                c.drawString(tx, y + ih - 4, f"{q}x")
+                c.setFont("Helvetica", 6.5 if dense else 7.5)
                 c.setFillColor(SOFT)
-                c.drawString(x + 74, y + 36, self.cat.by_id[pid].name)
-                c.drawString(x + 74, y + 26, f"{self.cat.colors[col]['name']} · #{pid}")
+                c.drawString(tx, y + ih - 15, self.cat.by_id[pid].name)
+                c.drawString(tx, y + ih - 24, f"{self.cat.colors[col]['name']} · #{pid}")
+
+    def _bag_page(self, bag, steps):
+        rows = Counter()
+        for st in steps:
+            pool = self.subs[st["sub"]]["parts"] if st.get("kind") == "subassembly" else self.m["parts"]
+            rows.update((pool[i]["part"], pool[i]["color"]) for i in st["parts"])
+        first, last = steps[0]["label"].split(".")[0], steps[-1]["label"].split(".")[0]
+        self._parts_pages(rows, f"Bag {bag}", f"{sum(rows.values())} parts for steps {first} to {last}. "
+                                              f"Find these first.", dense=True)
+
+    def _progress(self, done, total, bag):
+        c = self.c
+        x0, x1, y = 120, self.W - 90, 35
+        c.setStrokeColor(LINE)
+        c.setLineWidth(3)
+        c.line(x0, y, x1, y)
+        c.setStrokeColor(ACC)
+        c.line(x0, y, x0 + (x1 - x0) * done / max(1, total), y)
+        c.setFont("Helvetica", 7)
+        c.setFillColor(SOFT)
+        c.drawRightString(x0 - 8, y - 2.5, f"Bag {bag} of {self.bags}" if self.bags > 1 else "")
 
     def steps(self):
         steps = self.m["steps"]
@@ -157,10 +209,20 @@ class Book:
         per_page = 4
         cw, chh = (self.W - 72) / 2, (self.H - 90) / 2
         prev = {None: 0}                 # last view, per main model / per panel
-        for s0 in range(0, len(steps), per_page):
+        pages = []                       # (bag, [steps]) with a new page at every bag
+        for st in steps:
+            if not pages or pages[-1][0] != st["bag"] or len(pages[-1][1]) == per_page:
+                pages.append((st["bag"], []))
+            pages[-1][1].append(st)
+        shown_bag = None
+        for bag, page_steps in pages:
+            if self.bags > 1 and bag != shown_bag:
+                self._bag_page(bag, [st for st in steps if st["bag"] == bag])
+                shown_bag = bag
             self._page()
             c = self.c
-            for k, st in enumerate(steps[s0:s0 + per_page]):
+            self._progress(page_steps[-1]["n"], len(steps), bag)
+            for k, st in enumerate(page_steps):
                 r, cc = divmod(k, 2)
                 x0, y0 = 36 + cc * cw, self.H - 50 - (r + 1) * chh
                 kind, sub = st.get("kind"), st.get("sub")
@@ -171,39 +233,46 @@ class Book:
                     c.roundRect(x0 + 4, y0 + 4, cw - 8, chh - 8, 8, stroke=1, fill=1)
                     c.setFillColor(ACC)
                     c.setFont("Helvetica-Bold", 8)
-                    c.drawRightString(x0 + cw - 14, y0 + chh - 20, f"SUB-BUILD: {sub.upper()}")
+                    c.drawRightString(x0 + cw - 14, y0 + 12, f"SUB-BUILD: {sub.upper()}")
                 else:
                     c.setStrokeColor(LINE)
                     c.setLineWidth(0.6)
                     c.rect(x0 + 4, y0 + 4, cw - 8, chh - 8, stroke=1, fill=0)
                 pool = self.subs[sub]["parts"] if kind == "subassembly" else parts
                 cnt = Counter((pool[i]["part"], pool[i]["color"]) for i in st["parts"])
-                per_row = max(1, int((cw - 80) // 44))
-                rows = min(2, -(-len(cnt) // per_row)) if cnt else 1
-                img_h = chh - 60 - rows * 46
+                per_row = max(1, int((cw - 74) // 48))
+                rows = min(3, -(-len(cnt) // per_row)) if cnt else 1
+                img_h = chh - 60 - rows * 50
                 if kind == "attach":
-                    im = self.render(st["n"], (), st["view"], px=620, attach=sub)
+                    im = self.render(st["n"], (), st["view"], px=STEP_PX, attach=sub)
                 elif kind == "subassembly":
-                    im = self.render(st["n"], st["parts"], st["view"], px=620, sub=sub)
+                    im = self.render(st["n"], st["parts"], st["view"], px=STEP_PX, sub=sub)
                 else:
-                    im = self.render(st["n"], st["parts"], st["view"], px=620)
-                draw_indexed(c, im, x0 + 14, y0 + 12, cw - 28, img_h, preserveAspectRatio=True, anchor="c")
+                    im = self.render(st["n"], st["parts"], st["view"], px=STEP_PX)
+                draw_indexed(c, im, x0 + 14, y0 + 12, cw - 28, img_h, preserveAspectRatio=True, anchor="c",
+                             palette=self.pal)
                 c.setFillColor(INK)
-                c.setFont("Helvetica-Bold", 26)
-                c.drawString(x0 + 14, y0 + chh - 40, str(st["n"]))
+                label = st.get("label", str(st["n"]))
+                c.setFont("Helvetica-Bold", 26 if "." not in label else 20)
+                c.drawString(x0 + 14, y0 + chh - 40, label)
                 # callout: new parts this step, up to two rows
                 items = sorted(cnt.items())
-                shown = items[:per_row * 2]
+                shown = items[:per_row * 3]
                 for j, ((pid, col), q) in enumerate(shown):
                     r2, c2 = divmod(j, per_row)
-                    ix, iy = x0 + 60 + c2 * 44, y0 + chh - 50 - r2 * 46
+                    ix, iy = x0 + 64 + c2 * 48, y0 + chh - 50 - r2 * 50
                     draw_indexed(c, self.icon(pid, col), ix, iy, 40, 31)
                     c.setFont("Helvetica-Bold", 8)
                     c.setFillColor(INK)
-                    c.drawString(ix + 2, iy - 8, f"{q}x")
+                    c.drawString(ix + 2, iy - 7, f"{q}x")
+                    c.setFont("Helvetica", 4.8)       # colour by name too, never colour alone
+                    c.setFillColor(SOFT)
+                    c.drawString(ix + 2, iy - 13, self.cat.colors[col]["name"])
                 if len(items) > len(shown):
-                    c.setFont("Helvetica", 8)
-                    c.drawString(x0 + 60, y0 + chh - 150, f"+{len(items) - len(shown)} more")
+                    c.setFont("Helvetica-Bold", 8)
+                    c.setFillColor(ACC)
+                    c.drawString(x0 + 64, y0 + chh - 50 - 3 * 50 + 10,
+                                 f"+{len(items) - len(shown)} more part types: see the bag list")
                 key = sub if kind == "subassembly" else None
                 last = prev.get(key, 0)
                 if st["view"] != last:
@@ -220,7 +289,7 @@ class Book:
                     c.setFont("Helvetica-Oblique", 8)
                     c.setFillColor(SOFT)
                     c.drawString(x0 + 14, y0 + 16, "Press these on from underneath.")
-            self.log(f"  book: steps {s0 + 1}-{min(s0 + per_page, len(steps))} of {len(steps)}")
+            self.log(f"  book: steps {page_steps[0]['n']}-{page_steps[-1]['n']} of {len(steps)}")
 
     def _turn(self, x, y, quarters):
         c = self.c
@@ -246,7 +315,7 @@ class Book:
         for k in range(4):
             r, cc = divmod(k, 2)
             draw_indexed(c, self.render(n, view=k, px=700), x0 + cc * (s + 18), self.H - 80 - (r + 1) * s,
-                         s, s)
+                         s, s, palette=self.pal)
         c.setFont("Helvetica-Bold", 10)
         c.setFillColor(INK)
         c.drawString(36, y, "Checked in software")

@@ -256,6 +256,8 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
         fails += pfails
         ok = ok and not pfails
 
+    from .steps import label_and_bag
+    numbered = label_and_bag(steps)
     tm.lap("steps")
     stats.pop("per_part_studs", None)
     everything = parts + [q for sb in subs for q in sb["parts"]]
@@ -278,7 +280,8 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
         "subassemblies": subs,
         "steps": steps,
         "bom": [list(r) for r in exporters.bom(everything)],
-        "stats": {**stats, "steps": len(steps), "passed": ok, "failures": fails},
+        "stats": {**stats, "steps": len(steps), "numbered_steps": numbered,
+                  "bags": max((st["bag"] for st in steps), default=0), "passed": ok, "failures": fails},
     }
     return model, V_final
 
@@ -416,7 +419,8 @@ def write_viewer(model, path, catalog=None):
         html = f.read()
     slim = dict(model)
     slim["parts"] = [_viewer_part(p, cat) for p in model["parts"]]
-    slim["steps"] = [{"n": s["n"]} for s in model["steps"]]
+    slim["steps"] = [{"n": s["n"], "label": s.get("label", str(s["n"])), "bag": s.get("bag", 1),
+                      "kind": s.get("kind", "build")} for s in model["steps"]]
     slim["report"] = [{"kind": k, "text": t} for k, t in report_lines(model["stats"])]
     slim["panels"] = _viewer_panels(model)
     slim.pop("subassemblies", None)

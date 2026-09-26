@@ -41,16 +41,19 @@
 <canvas id="c"></canvas>
 <header class="ui"><h1 id="title"></h1><p id="sub"></p></header>
 <nav class="ui">
-  <button id="bChecks">Checks</button><button id="bParts">Parts</button><button id="bTheme">Theme</button>
+  <button id="bChecks">Checks</button><button id="bParts">Parts</button><button id="bExplode" hidden>Explode panels</button>
+  <button id="bRec" aria-label="Record the build as a video">Record</button><button id="bTheme">Theme</button>
 </nav>
 <aside class="ui card" id="checks"><h2>Checked in software</h2><ul id="checkList"></ul>
   <div class="note" id="disc"></div></aside>
 <aside class="ui card" id="bom"><h2>Parts list</h2><div id="bomList"></div>
   <div style="display:flex;gap:6px;margin-top:10px"><button id="dlXml">BrickLink XML</button><button id="dlCsv">CSV</button></div></aside>
 <footer class="ui card">
-  <button id="bPlay">Pause</button>
+  <button id="bPrev" aria-label="Previous step" title="Previous step (left arrow)">&#9664;</button>
+  <button id="bPlay" aria-label="Play or pause the build" title="Play / pause (space)">Pause</button>
+  <button id="bNext" aria-label="Next step" title="Next step (right arrow)">&#9654;</button>
   <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Build progress">
-  <span>Step <b id="now">0</b>/<span id="tot">0</span></span>
+  <span aria-live="polite">Step <b id="now">0</b> of <span id="tot">0</span> <span id="bag" style="color:var(--soft)"></span></span>
 </footer>
 <script id="model" type="application/json">__MODEL_JSON__</script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
@@ -62,8 +65,11 @@ const $ = id => document.getElementById(id);
 const S = 8, P = 3.2;             // mm per stud, per plate
 const parts = M.parts, NSTEP = M.steps.length;
 $('title').textContent = M.meta.title;
-$('sub').textContent = `${M.stats.parts.toLocaleString()} parts · ${M.stats.height_cm} cm · ${NSTEP} steps`;
-$('tot').textContent = NSTEP;
+$('sub').textContent = `${M.stats.parts.toLocaleString()} parts · ${M.stats.height_cm} cm · ${M.stats.numbered_steps || NSTEP} steps`
+  + ((M.stats.bags || 1) > 1 ? ` · ${M.stats.bags} bags` : '');
+const LBL = M.steps.map(s => s.label || String(s.n));
+$('tot').textContent = LBL.length ? LBL[LBL.length - 1].split('.')[0] : 0;
+const BAGS = Math.max(1, ...M.steps.map(s => s.bag || 1));
 $('disc').textContent = M.meta.disclaimer || '';
 
 // ---------- scene ----------
@@ -119,6 +125,25 @@ for (const pn of (M.panels || [])) for (const b of pn.parts) panelParts.push({ p
 const panelMesh = new THREE.InstancedMesh(boxGeo, mat, Math.max(1, panelParts.length));
 panelParts.forEach(({ b }, k) => panelMesh.setColorAt(k, new THREE.Color(M.colors[b.color].hex)));
 panelMesh.count = 0; scene.add(panelMesh);
+// new-part highlight: tint the parts of the current step towards the accent colour
+const ACC = new THREE.Color('#ff4628');
+const slot = [];                       // part index -> [mesh, instance]
+for (const [k, g] of groups) g.idx.forEach((i, n) => { slot[i] = [g.mesh, n]; });
+const baseCol = i => new THREE.Color(M.colors[parts[i].color].hex);
+const panelSlots = panelParts.map((pp, k) => [panelMesh, k, new THREE.Color(M.colors[pp.b.color].hex), pp.pn.step]);
+let hlStep = -1;
+function highlight(s) {
+  if (s === hlStep) return;
+  const paint = (step, on) => {
+    for (const i of (byStep[step] || [])) { const [mesh, n] = slot[i]; const c = baseCol(i);
+      mesh.setColorAt(n, on ? c.lerp(ACC, 0.45) : c); mesh.instanceColor.needsUpdate = true; }
+    for (const [mesh, n, c, st] of panelSlots) if (st === step) {
+      mesh.setColorAt(n, on ? c.clone().lerp(ACC, 0.45) : c); mesh.instanceColor.needsUpdate = true; }
+  };
+  paint(hlStep, false); paint(s, true); hlStep = s;
+}
+const byStep = {};
+parts.forEach((p, i) => (byStep[p.step] ||= []).push(i));
 const studGeo = new THREE.CylinderGeometry(2.4, 2.4, 1.8, 16);
 const studList = [];
 for (const i of order) { const p = parts[i];
@@ -155,7 +180,7 @@ function place(t) {                 // t = build time in steps (fractional)
   q.identity();
   for (const { pn, b } of panelParts) {
     const local = t - (pn.step - 1); if (local <= 0) continue;
-    const slide = Math.max(0, 1 - local * 1.2) ** 2 * 80;       // slides in along the face normal
+    const slide = Math.max(0, 1 - local * 1.2) ** 2 * 80 + (exploded ? 60 : 0);   // along the face normal
     v.set((b.lo[0] + b.hi[0]) / 2 + pn.n[0] * slide, (b.lo[1] + b.hi[1]) / 2, (b.lo[2] + b.hi[2]) / 2 + pn.n[2] * slide);
     sc.set(b.hi[0] - b.lo[0] - gap, b.hi[1] - b.lo[1] - gap, b.hi[2] - b.lo[2] - gap);
     panelMesh.setMatrixAt(np++, m4.compose(v, q, sc));
@@ -174,7 +199,7 @@ function place(t) {                 // t = build time in steps (fractional)
 }
 
 // ---------- playback ----------
-let T = 0, playing = true;
+let T = 0, playing = true, exploded = false;
 { // ?step=N opens the viewer paused at that step (handy for links and screenshots)
   const q = new URLSearchParams(location.search).get('step');
   if (q !== null) {
@@ -185,6 +210,37 @@ let T = 0, playing = true;
 const rate = Math.max(1.2, NSTEP / 40);  // whole build in ~40 s
 $('bPlay').onclick = () => { playing = !playing; $('bPlay').textContent = playing ? 'Pause' : 'Play'; if (playing && T >= NSTEP + 1) T = 0; };
 $('scrub').oninput = e => { T = (+e.target.value / 1000) * (NSTEP + 1); playing = false; $('bPlay').textContent = 'Play'; };
+// step-by-step: jump to the end of a step (all its parts in place, highlighted)
+function goStep(k) {
+  k = Math.max(0, Math.min(NSTEP, k));
+  T = k + 0.999; playing = false; $('bPlay').textContent = 'Play';
+  $('scrub').value = Math.round(T / (NSTEP + 1) * 1000);
+}
+$('bPrev').onclick = () => goStep(Math.floor(T) - (T % 1 > 0.99 ? 1 : 0));
+$('bNext').onclick = () => goStep(Math.floor(T) + 1);
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.key !== ' ') return;
+  if (e.key === 'ArrowRight') { $('bNext').click(); e.preventDefault(); }
+  else if (e.key === 'ArrowLeft') { $('bPrev').click(); e.preventDefault(); }
+  else if (e.key === ' ') { $('bPlay').click(); e.preventDefault(); }
+});
+if ((M.panels || []).length) {
+  $('bExplode').hidden = false;
+  if (new URLSearchParams(location.search).has('explode')) { exploded = true; $('bExplode').classList.add('on'); }
+  $('bExplode').onclick = () => { exploded = !exploded; $('bExplode').classList.toggle('on', exploded); };
+}
+// record the build (whole playback) as a WebM video
+$('bRec').onclick = () => {
+  if (!window.MediaRecorder || !canvas.captureStream) { $('bRec').textContent = 'Not supported'; return; }
+  const rec = new MediaRecorder(canvas.captureStream(30), { mimeType: 'video/webm' });
+  const chunks = [];
+  rec.ondataavailable = e => chunks.push(e.data);
+  rec.onstop = () => { dl(`${M.meta.slug}-build.webm`, new Blob(chunks, { type: 'video/webm' }), 'video/webm');
+                       $('bRec').textContent = 'Record'; $('bRec').classList.remove('on'); };
+  T = 0; playing = true; $('bPlay').textContent = 'Pause'; $('bRec').textContent = 'Recording...';
+  $('bRec').classList.add('on'); rec.start();
+  const wait = setInterval(() => { if (!playing) { clearInterval(wait); setTimeout(() => rec.stop(), 800); } }, 200);
+};
 function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize();
 let last = performance.now();
@@ -192,7 +248,10 @@ renderer.setAnimationLoop(now => {
   const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now;  // first frame can predate `last`
   if (playing) { T = Math.min(NSTEP + 1, T + dt * rate); if (T >= NSTEP + 1) { playing = false; $('bPlay').textContent = 'Replay'; } }
   place(T);
-  $('now').textContent = Math.min(NSTEP, Math.floor(T));
+  const cur = Math.min(NSTEP, Math.floor(T));
+  highlight(playing ? cur + 1 : cur);
+  $('now').textContent = cur ? LBL[cur - 1] : 0;
+  $('bag').textContent = cur && BAGS > 1 ? `(bag ${M.steps[cur - 1].bag} of ${BAGS})` : '';
   if (playing) $('scrub').value = Math.round(T / (NSTEP + 1) * 1000);
   ctl.update(); renderer.render(scene, cam);
 });
@@ -204,9 +263,10 @@ $('checkList').innerHTML = M.report.map(r =>
 const byColor = {};
 for (const [pid, c, qn] of M.bom) (byColor[c] ||= []).push([pid, qn]);
 $('bomList').innerHTML = Object.entries(byColor).map(([c, rows]) =>
-  `<div style="margin:8px 0 2px;font-weight:700;display:flex;gap:6px;align-items:center"><span class="sw" style="background:${M.colors[c].hex}"></span>${M.colors[c].name}</div>` +
+  `<div style="margin:8px 0 2px;font-weight:700;display:flex;gap:6px;align-items:center"><span class="sw" role="img" aria-label="${M.colors[c].name}" style="background:${M.colors[c].hex}"></span>${M.colors[c].name}</div>` +
   rows.map(([pid, qn]) => `<div class="row"><span></span><span>${M.catalog_names[pid]} <span style="color:var(--soft)">#${pid}</span></span><b>${qn}</b></div>`).join('')).join('');
-const dl = (name, text, type) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); };
+const dl = (name, data, type) => { const a = document.createElement('a');
+  a.href = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type })); a.download = name; a.click(); };
 $('dlXml').onclick = () => dl(`${M.meta.slug}-bricklink.xml`, '<INVENTORY>\n' + M.bom.map(([pid, c, qn]) =>
   `  <ITEM><ITEMTYPE>P</ITEMTYPE><ITEMID>${pid}</ITEMID><COLOR>${M.colors[c].bricklink}</COLOR><MINQTY>${qn}</MINQTY></ITEM>`).join('\n') + '\n</INVENTORY>\n', 'application/xml');
 $('dlCsv').onclick = () => dl(`${M.meta.slug}-parts.csv`, 'Part ID,Part,Colour,Qty\n' + M.bom.map(([pid, c, qn]) =>
