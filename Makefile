@@ -10,7 +10,7 @@ preview:
 example:
 	$(SW) build examples/lighthouse/design.py --out examples/lighthouse/out --seeds 6
 package:
-	mkdir -p dist && cd skill && zip -rq ../dist/snapwright.skill snapwright -x '*/__pycache__/*' '*.DS_Store'
+	mkdir -p dist && cd skill && zip -rq ../dist/snapwright.skill snapwright -x '*/__pycache__/*' '*.DS_Store' '*/.rebrickable/*' '*.tmp'
 clean:
 	rm -rf examples/*/out creations/*/out dist .pytest_cache
 bench:

@@ -7,7 +7,8 @@
   sw.py compare  design.py --ref PHOTO [--mask M] silhouette IoU from the best view + side by side
   sw.py viewer   model.json --out FILE          rebuild the 3D viewer from a model
   sw.py book     model.json --out FILE          rebuild the instruction PDF from a model
-  sw.py sync-catalog --key REBRICKABLE_KEY      refresh part-colour availability (needs network)
+  sw.py sync-catalog [--key KEY]                refresh part-colour availability from Rebrickable
+                                                (bulk downloads, or the API with a key; needs network)
 """
 import argparse
 import os
@@ -45,7 +46,11 @@ def main(argv=None):
     v = sub.add_parser("viewer"); v.add_argument("model"); v.add_argument("--out", required=True)
     k = sub.add_parser("book"); k.add_argument("model"); k.add_argument("--out", required=True)
     k.add_argument("--page", choices=["letter", "a4"], default="letter")
-    s = sub.add_parser("sync-catalog"); s.add_argument("--key", default=os.environ.get("REBRICKABLE_KEY"))
+    s = sub.add_parser("sync-catalog")
+    s.add_argument("--key", default=os.environ.get("REBRICKABLE_KEY"),
+                   help="use the Rebrickable API (else the free CSV downloads)")
+    s.add_argument("--downloads", help="folder for the CSV downloads (default: assets/.rebrickable)")
+    s.add_argument("--since", type=int, default=2005, help="count colours seen in sets from this year on")
     a = ap.parse_args(argv)
 
     if a.cmd == "preview":
@@ -69,7 +74,7 @@ def main(argv=None):
         Book(pipeline.load_model(a.model), Catalog(), a.out, page=a.page).build()
     elif a.cmd == "sync-catalog":
         from snapwright.sync import sync
-        sync(a.key)
+        sync(a.key, downloads=a.downloads, since=a.since)
 
 
 def _profiled_build(design, out, kw):
