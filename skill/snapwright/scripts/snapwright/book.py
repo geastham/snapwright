@@ -25,6 +25,7 @@ LINE = HexColor("#d9dcde")
 ACC = HexColor("#ff4628")
 PAPER = HexColor("#fbfaf7")
 INSET = HexColor("#f1f4f6")
+STEP_PX = 520          # step renders: ~140 dpi at their printed size
 
 
 def _img(pil):
@@ -55,6 +56,19 @@ class Book:
                                      "grid": tuple(sb["grid"]),
                                      "colors": {q["id"]: catalog.colors[q["color"]]["hex"] for q in sb["parts"]}}
         self.attach_at = {st["sub"]: st["n"] for st in model["steps"] if st.get("kind") == "attach"}
+        self.pal = self._palette()
+
+    def _palette(self):
+        """Every colour the renderer draws for this model (face shades, studs, edges, accent,
+        paper): images are stored in exactly these colours."""
+        from .render import ACCENT, _edge_col, _lift, _shade
+        from .catalog import hex_to_rgb
+        out = {(251, 250, 247), ACCENT, (255, 255, 255), (107, 116, 121)}
+        for key in {p["color"] for p in self.all_parts()}:
+            b = hex_to_rgb(self.cat.colors[key]["hex"])
+            out |= {b, _lift(b, 0.12), _lift(b, 0.04), _lift(b, 0.22), _shade(b, 0.62), _shade(b, 0.8),
+                    _shade(b, 0.72), _edge_col(b)}
+        return sorted(out)
 
     def all_parts(self):
         return self.m["parts"] + [q for sb in self.subs.values() for q in sb["parts"]]
@@ -109,7 +123,7 @@ class Book:
         self._page(footer=False)
         c, W, H, meta, st = self.c, self.W, self.H, self.m["meta"], self.m["stats"]
         n = len(self.m["steps"])
-        draw_indexed(c, self.render(n, view=0, px=1100), 36, 150, W - 72, W - 72)
+        draw_indexed(c, self.render(n, view=0, px=1100), 36, 150, W - 72, W - 72, palette=self.pal)
         c.setFillColor(INK)
         c.setFont("Helvetica-Bold", 34)
         c.drawString(40, H - 78, meta["title"])
@@ -182,12 +196,13 @@ class Book:
                 rows = min(2, -(-len(cnt) // per_row)) if cnt else 1
                 img_h = chh - 60 - rows * 46
                 if kind == "attach":
-                    im = self.render(st["n"], (), st["view"], px=620, attach=sub)
+                    im = self.render(st["n"], (), st["view"], px=STEP_PX, attach=sub)
                 elif kind == "subassembly":
-                    im = self.render(st["n"], st["parts"], st["view"], px=620, sub=sub)
+                    im = self.render(st["n"], st["parts"], st["view"], px=STEP_PX, sub=sub)
                 else:
-                    im = self.render(st["n"], st["parts"], st["view"], px=620)
-                draw_indexed(c, im, x0 + 14, y0 + 12, cw - 28, img_h, preserveAspectRatio=True, anchor="c")
+                    im = self.render(st["n"], st["parts"], st["view"], px=STEP_PX)
+                draw_indexed(c, im, x0 + 14, y0 + 12, cw - 28, img_h, preserveAspectRatio=True, anchor="c",
+                             palette=self.pal)
                 c.setFillColor(INK)
                 c.setFont("Helvetica-Bold", 26)
                 c.drawString(x0 + 14, y0 + chh - 40, str(st["n"]))
@@ -246,7 +261,7 @@ class Book:
         for k in range(4):
             r, cc = divmod(k, 2)
             draw_indexed(c, self.render(n, view=k, px=700), x0 + cc * (s + 18), self.H - 80 - (r + 1) * s,
-                         s, s)
+                         s, s, palette=self.pal)
         c.setFont("Helvetica-Bold", 10)
         c.setFillColor(INK)
         c.drawString(36, y, "Checked in software")
