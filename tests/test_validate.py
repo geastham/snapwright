@@ -78,3 +78,20 @@ def test_solid_brick_tower_has_no_necks(cat):
     m = model_from_src('model = Model(6, 6, 30)\nmodel.box(0, 0, 0, 6, 6, 30, "blue")')
     model, _ = solve(m, catalog=cat, seeds=1)
     assert model["stats"]["necks"] == []
+
+
+def test_shaped_connectors():
+    """A 2x1 slope has a stud on its back cell only; an inverted slope takes a stud under its
+    back cell only. Contacts must follow the cells, not the part's footprint."""
+    base = part(0, 0, 0, 0, dx=2)                                   # 1x2 plate under both cells
+    slope = dict(part(1, 0, 0, 1, dx=2, h=3), top_cells=[[0, 0]], shape="slope", dir=0)
+    over_back = part(2, 0, 0, 4)                                    # on the studded back cell
+    over_front = part(3, 1, 0, 4)                                   # on the sloped front cell
+    parts = [base, slope, over_back, over_front]
+    occ, _ = occupancy(parts, (2, 1, 5))
+    e = connection_graph(parts, occ)
+    assert e[(0, 1)] == 2 and e[(1, 2)] == 1 and (1, 3) not in e
+    inv = dict(part(1, 0, 0, 1, dx=2, h=3), bottom_cells=[[0, 0]], shape="slope_inv", dir=0)
+    parts = [base, inv]
+    occ, _ = occupancy(parts, (2, 1, 5))
+    assert connection_graph(parts, occ) == {(0, 1): 1}

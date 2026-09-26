@@ -9,7 +9,7 @@ from conftest import ROOT
 
 SW = os.path.join(ROOT, "skill", "snapwright", "scripts", "sw.py")
 DESIGN = os.path.join(ROOT, "examples", "lighthouse", "design.py")
-GOLDEN = {"parts": 1760, "steps": 184}      # recorded 2026-09-25 (M1); v0.1 was 1,744 / 182
+GOLDEN = {"parts": 1761, "steps": 185}      # M2 (shaping); M1 1,760 / 184; v0.1 1,744 / 182
 
 
 def test_lighthouse_golden_and_deterministic(tmp_path):

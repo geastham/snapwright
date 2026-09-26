@@ -1,6 +1,40 @@
 # Tasks
 
-Current milestone: **M1 Harden the core** (branch `m1-hardening`). Spec: SPEC.md §5 M1, §7.
+Current milestone: **M2 Parts vocabulary v2** (branch `m2-parts-v2`, stacked on PR #1).
+Spec: SPEC.md §5 M2 plus kickoff notes (connection metadata, renderer, bracing).
+
+## M2 checklist
+- [x] Catalog 0.2: connection metadata per part (top studs / bottom sockets per cell, shape,
+      LDraw file + native orientation/origin, BrickLink/Rebrickable ids); reader for 0.1
+- [x] New parts: slopes 45 (3040, 3039), 33 (4286, 3298), cheese 30 (54200, 85984), inverted 45
+      (3665, 3660), round plate/tile 1x1 and 2x2 (4073, 98138, 4032, 14769), round bricks
+      (3062b, 3941), big plates (3958, 3036, 41539)
+- [x] Connection model: per-cell studs/sockets in validator, packer support map, steps, oracles
+- [x] Surface-normal pass: slopes on stair edges of tapers/curves, inverted slopes under
+      overhangs, rounds on convex corners and thin columns; counted and reported
+- [x] Renderer draws slopes, inverted slopes and rounds (book steps, icons, previews)
+- [x] Viewer draws slopes and rounds (extruded slope profiles, cylinders, studs per cell)
+- [x] LDraw export for new parts + round-trip test; checked against official LDraw geometry
+      (tools/ldraw_check.py, docs/ldraw-check.md). LeoCAD screenshot: blocked (cask fails Gatekeeper)
+- [x] `Model.hollow(wall=2, cap=3, brace_every=8)` with internal 2x2 bracing columns; hollow
+      box and egg PASS with no major weak points and balance (tests). Saves ~35%+ mass, not parts
+- [x] Base/stand: `--base auto` (default) stands a tipping model on a 2-plate base, counted as
+      added support and reported; `Model.base()` for explicit stands; `--base off` to disable
+- [x] Property tests + fixtures cover new parts (test_shaping, blob_1016, blob_1076); golden
+      lighthouse 1,761 / 185 (M1 1,760 / 184)
+- [x] SKILL.md / references / SPEC / README; book pages, viewer and LDraw renders inspected
+- [x] PR with Decisions (https://github.com/geastham/snapwright/pull/2)
+
+LDraw facts gathered from the official library (for the catalog and exporter):
+- Box parts: origin top centre, long axis along LDraw X.
+- 3040b/3039/4286/3298: origin top centre of the stud (back) row; body runs toward -Z; slope
+  faces up toward -Z (our +z). Top studs back row only; bottom takes studs on every cell.
+- 54200/85984 (cheese): origin at the BOTTOM centre, 2 plates tall, no studs, low side -Z.
+- 3665a/3660: like 3040b but inverted: studs on both rows (front one open), bottom takes
+  studs on the back row only.
+- Rounds 4073/98138/14769/4032b/3062b/3941: centred, origin top.
+
+## M1 (done, PR #1)
 
 Baseline (v0.1, 2026-09-25): tests 4 passed in 67 s; lighthouse 1,744 parts / 182 steps /
 4,540 connections, PASS; build with book 95 s wall / 49 s CPU; PDF 10.2 MB; deterministic

@@ -58,7 +58,7 @@ def test_exports(tmp_path):
     xml = (out / f"{slug}-bricklink.xml").read_text()
     assert xml.count("<ITEM>") == len(m["bom"])
     assert "__MODEL_JSON__" not in (out / f"{slug}-viewer.html").read_text()
-    assert json.loads((out / "model.json").read_text())["schema"] == "snapwright.model/0.2"
+    assert json.loads((out / "model.json").read_text())["schema"] == "snapwright.model/0.3"
 
 
 def test_book(tmp_path):

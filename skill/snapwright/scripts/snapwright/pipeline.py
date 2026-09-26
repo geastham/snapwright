@@ -21,12 +21,14 @@ from .validate import connection_graph, occupancy, report_lines, validate, verdi
 DISCLAIMER = ("Unofficial fan design. Not affiliated with, sponsored or endorsed by the LEGO Group "
               "or any other brick manufacturer.")
 ASSETS = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "assets"))
-SCHEMA = "snapwright.model/0.2"
+SCHEMA = "snapwright.model/0.3"
 
 
 def load_model(path_or_dict) -> dict:
     """Read model.json, upgrading older schemas in memory so every output can be regenerated.
 
+    0.2 -> 0.3: parts may be shaped (shape, dir, top_cells, bottom_cells: per-cell studs and
+    sockets); 0.2 files have only box parts, so nothing changes but the schema tag.
     0.1 -> 0.2: steps gain `level`; stats gain added_cells, studded_cells, floating_voxels,
     design_voxels (0 when unknown); necks were a per-level heuristic ({plate, strength,
     parts_above}) and are kept as they are, with mass_g unknown (None)."""
@@ -34,8 +36,12 @@ def load_model(path_or_dict) -> dict:
     schema = m.get("schema", "")
     if schema == SCHEMA:
         return m
+    if schema == "snapwright.model/0.2":
+        m["schema"] = SCHEMA
+        m.setdefault("meta", {}).setdefault("upgraded_from", schema)
+        return m
     if schema != "snapwright.model/0.1":
-        raise SystemExit(f"unknown model schema {schema!r}; this snapwright reads 0.1 and 0.2")
+        raise SystemExit(f"unknown model schema {schema!r}; this snapwright reads 0.1 to 0.3")
     parts = m["parts"]
     for st in m["steps"]:
         st.setdefault("level", min(parts[i]["y"] for i in st["parts"]))
@@ -106,7 +112,7 @@ class Timer:
 
 def build(design, out, seeds=8, finish="tiles", audience="adult", max_per_step=None,
           book=True, viewer=True, page="letter", strict=True, catalog=None, log=print,
-          timer=None):
+          timer=None, shapes=True, base="auto"):
     """Full pipeline from a design file to every output in `out`. Returns model.json."""
     tm = timer or Timer()
     cat = catalog or Catalog()
@@ -115,7 +121,7 @@ def build(design, out, seeds=8, finish="tiles", audience="adult", max_per_step=N
     os.makedirs(out, exist_ok=True)
     model, V_final = solve(m, cat, seeds=seeds, finish=finish, audience=audience,
                            max_per_step=max_per_step, design_file=os.path.basename(design),
-                           log=log, timer=tm)
+                           log=log, timer=tm, shapes=shapes, base=base)
     ok = model["stats"]["passed"]
     parts = model["parts"]
     slug = model["meta"]["slug"]
@@ -129,7 +135,7 @@ def build(design, out, seeds=8, finish="tiles", audience="adult", max_per_step=N
     np.savez_compressed(os.path.join(out, "voxels.npz"), V=m.V, V_built=V_final, palette=np.array(m.palette))
     tm.lap("exports")
     if viewer:
-        write_viewer(model, os.path.join(out, f"{slug}-viewer.html"))
+        write_viewer(model, os.path.join(out, f"{slug}-viewer.html"), cat)
         tm.lap("viewer")
     if book:
         if ok or not strict:
@@ -149,14 +155,27 @@ def build(design, out, seeds=8, finish="tiles", audience="adult", max_per_step=N
 
 
 def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max_per_step=None,
-          design_file="design.py", log=print, timer=None):
-    """Design model -> parts, checks and steps, in memory. Returns (model dict, built voxels)."""
+          design_file="design.py", log=print, timer=None, shapes=True, base="auto"):
+    """Design model -> parts, checks and steps, in memory. Returns (model dict, built voxels).
+    base="auto": if the model would tip over (and is otherwise one sound structure), stand it
+    on a 2-plate base and rebuild; `m` then includes the base, which is counted as added
+    support. base="off" leaves balance failures for the designer."""
     tm = timer or Timer()
     log(f"[1/6] design: {m.title} - {m.voxel_count():,} voxels on {m.NX}x{m.NZ}x{m.NY}")
     _warn_islands(m, log)
 
     log("[2/6] brickify")
-    parts, stats, V_final = brickify(m.V, m.palette, cat, seeds=seeds, finish=finish, log=log)
+    parts, stats, V_final = brickify(m.V, m.palette, cat, seeds=seeds, finish=finish, log=log,
+                                     shapes=shapes)
+    if base == "auto" and stats["com_margin_mm"] < 3 and stats["floating"] == 0 \
+            and stats["structures"] == 1:
+        n = m.base(layers=2, margin=1)
+        log(f"  auto-repair: centre of mass only {stats['com_margin_mm']} mm inside the footprint; "
+            f"adding a 2-plate base ({n} cells) and rebuilding")
+        parts, stats, V_final = brickify(m.V, m.palette, cat, seeds=seeds, finish=finish, log=log,
+                                         shapes=shapes)
+        stats["added_cells"] += n
+        stats["base_cells"] = n
     tm.lap("brickify")
     if stats.get("recolored_cells"):
         log(f"  note: {stats['recolored_cells']} surface cells recoloured to keep the model in one piece")
@@ -197,7 +216,8 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
         "meta": {"title": m.title, "subtitle": m.subtitle, "author": m.author,
                  "slug": slugify(m.title), "disclaimer": DISCLAIMER,
                  "created": _dt.date.today().isoformat(), "generator": f"snapwright {__version__}",
-                 "design_file": design_file, "finish": finish, "audience": audience},
+                 "design_file": design_file, "finish": finish, "audience": audience,
+                 "shapes": shapes, "base": base},
         "grid": {"shape": list(m.V.shape), "stud_mm": 8.0, "plate_mm": 3.2},
         "colors": {k: cat.colors[k] for k in used},
         "catalog_names": {p["part"]: p["name"] for p in parts},
@@ -209,12 +229,24 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
     return model, V_final
 
 
-def write_viewer(model, path):
+def _viewer_part(p, cat):
+    """The fields the viewer needs; shaped parts add shape, dir, catalog L / lip, studs."""
+    q = {k: p[k] for k in ("x", "y", "z", "dx", "dz", "h", "color", "studs", "step")}
+    if p.get("shape", "box") != "box":
+        t = cat.by_id.get(p["part"]) if cat else None
+        q.update(shape=p["shape"], dir=p.get("dir", 0), L=t.L if t else max(p["dx"], p["dz"]),
+                 lip=t.lip if t else 0.5)
+        if "top_cells" in p:
+            q["tc"] = p["top_cells"]
+    return q
+
+
+def write_viewer(model, path, catalog=None):
+    cat = catalog or Catalog()
     with open(os.path.join(ASSETS, "viewer_template.html")) as f:
         html = f.read()
     slim = dict(model)
-    slim["parts"] = [{k: p[k] for k in ("x", "y", "z", "dx", "dz", "h", "color", "studs", "step")}
-                     for p in model["parts"]]
+    slim["parts"] = [_viewer_part(p, cat) for p in model["parts"]]
     slim["steps"] = [{"n": s["n"]} for s in model["steps"]]
     slim["report"] = [{"kind": k, "text": t} for k, t in report_lines(model["stats"])]
     data = json.dumps(slim, separators=(",", ":")).replace("</", "<\\/")

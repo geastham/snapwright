@@ -77,7 +77,8 @@ class Packer:
     def __init__(self, V: np.ndarray, palette: list[str], catalog: Catalog, seed: int = 0,
                  finish: str = "tiles", use_bricks: bool = True, max_len: int = 8,
                  interior: int | None = None, no_brick: np.ndarray | None = None,
-                 no_tile: np.ndarray | None = None, priority: np.ndarray | None = None):
+                 no_tile: np.ndarray | None = None, priority: np.ndarray | None = None,
+                 shapes: bool = True):
         self.V = V
         self.no_tile = no_tile if no_tile is not None else np.zeros(V.shape, dtype=bool)
         self.no_brick = no_brick if no_brick is not None else np.zeros(V.shape, dtype=bool)
@@ -85,6 +86,7 @@ class Packer:
         # join a cell outside their own group
         self.priority = priority if priority is not None else np.zeros(V.shape, dtype=np.int32)
         self.rescued = 0
+        self.shapes = shapes
         self.palette = palette
         self.cat = catalog
         self.rng = random.Random(seed)
@@ -94,6 +96,7 @@ class Packer:
         NX, NZ, NY = V.shape
         self.shape = (NX, NZ, NY)
         self.owner = -np.ones(V.shape, dtype=np.int32)
+        self.stud_top = np.zeros(V.shape, dtype=bool)   # cells whose top offers a stud
         self.parts: list[dict] = []
         lim = lambda t: t.L <= max_len
         self.bricks = [t for t in catalog.of_kind("brick") if lim(t)]
@@ -119,6 +122,8 @@ class Packer:
     def run(self) -> list[dict]:
         NX, NZ, NY = self.shape
         filled = self.V > 0
+        if self.shapes:
+            self._shape_surface()
         for c in range((NY + 2) // 3):
             y0 = 3 * c
             pref = c % 2
@@ -128,12 +133,14 @@ class Packer:
                 colmax = r.max(2)
                 colmin = np.where(r > 0, r, 32767).min(2)
                 consistent = (colmax == 0) | (colmax == colmin)
-                mask = f & consistent & self.supported[:, :, y0] & ~self.no_brick[:, :, y0:y0 + 3].any(2)
+                mask = (f & consistent & self.supported[:, :, y0] & ~self.no_brick[:, :, y0:y0 + 3].any(2)
+                        & (self.owner[:, :, y0:y0 + 3] < 0).all(2))
                 if self.finish == "tiles":
                     mask &= ~self.top_exposed[:, :, y0 + 2]
                 # cells in this course that must be plate stacks can't interlock with bricks
                 # beside them, so give them a one-stud plate margin to bridge into
-                plate_only = filled[:, :, y0:y0 + 3].any(2) & ~mask
+                # (cells already claimed by shaped parts are solid like bricks: no margin)
+                plate_only = filled[:, :, y0:y0 + 3].any(2) & ~mask & ~(self.owner[:, :, y0:y0 + 3] >= 0).all(2)
                 if plate_only.any():
                     grown = plate_only.copy()
                     grown[1:, :] |= plate_only[:-1, :]
@@ -168,6 +175,24 @@ class Packer:
                 self.owner[p["x"]:p["x"] + p["dx"], p["z"]:p["z"] + p["dz"], p["y"]:p["y"] + p["h"]] = i
         return self.parts
 
+    def _shape_surface(self):
+        """Slopes, inverted slopes and round parts claim their cells before normal packing
+        (see shaping.py). Cells the repair loop is working on are left alone."""
+        from .shaping import find_shapes
+        blocked = self.no_brick | (self.priority > 0)
+        for s in find_shapes(self.V, self.req, self.cat, self.finish, blocked, visible=self.vis):
+            t = s["t"]
+            pid = len(self.parts)
+            x, z, y, dx, dz, h = s["x"], s["z"], s["y"], s["dx"], s["dz"], s["h"]
+            self.owner[x:x + dx, z:z + dz, y:y + h] = pid
+            for cx, cz in s["top_cells"]:
+                self.stud_top[cx, cz, y + h - 1] = True
+            color = self.palette[(s["color"] or self.interior) - 1]
+            self.parts.append({"id": pid, "part": t.id, "name": t.name, "kind": t.kind, "color": color,
+                               "x": x, "z": z, "y": y, "dx": dx, "dz": dz, "h": h, "rot": s["dir"],
+                               "studs": bool(s["top_cells"]), "shape": t.shape, "dir": s["dir"],
+                               "top_cells": s["top_cells"], "bottom_cells": s["bottom_cells"]})
+
     # ---- packing ----------------------------------------------------------
     def _score(self, x, z, dx, dz, y, pref):
         score = float(dx * dz)
@@ -188,6 +213,7 @@ class Packer:
     def _place(self, t, x, z, y, dx, dz, h, cidx, free, rot):
         pid = len(self.parts)
         self.owner[x:x + dx, z:z + dz, y:y + h] = pid
+        self.stud_top[x:x + dx, z:z + dz, y + h - 1] = t.studs
         free[x:x + dx, z:z + dz] = False
         color = self.palette[(cidx or self.interior) - 1]
         self.parts.append({"id": pid, "part": t.id, "name": t.name, "kind": t.kind, "color": color,
@@ -212,7 +238,7 @@ class Packer:
         NX, NZ, _ = self.shape
         done = 0
         shapes = sorted(_shapes(types), key=lambda s: -(s[2] * s[3]))
-        under = self.owner[:, :, y - 1] >= 0 if y > 0 else np.ones((NX, NZ), dtype=bool)
+        under = self.stud_top[:, :, y - 1] if y > 0 else np.ones((NX, NZ), dtype=bool)
 
         def colour(cells):
             vals = {int(col[c]) for c in cells} - {0}
@@ -281,6 +307,7 @@ class Packer:
                 else:
                     self.parts[slot] = entry
                 self.owner[ax:ax + dx, az:az + dz, y:y + h] = slot
+                self.stud_top[ax:ax + dx, az:az + dz, y + h - 1] = t.studs
             self.rescued += 1
             done += 1
         return done
@@ -292,7 +319,7 @@ class Packer:
         # include a supported cell; on the ground layer everything is supported
         prio = free & (self.priority[:, :, y] > 0)
         if y > 0 or prio.any():
-            under = self.owner[:, :, y - 1] >= 0 if y > 0 else np.ones(free.shape, dtype=bool)
+            under = self.stud_top[:, :, y - 1] if y > 0 else np.ones(free.shape, dtype=bool)
             # farthest-from-support first, so outer rings claim a path inward before inner rings
             dist = np.full(free.shape, 10 ** 6, dtype=np.int32)
             frontier = [tuple(c) for c in np.argwhere(free & under)]
@@ -600,7 +627,7 @@ def change_counts(V, W, palette) -> dict:
 
 
 def brickify(V, palette, catalog, seeds=8, finish="tiles", use_bricks=True, max_len=8,
-             repair_rounds=6, log=print):
+             repair_rounds=6, log=print, shapes=True):
     """Try several seeds (each with a repair loop), validate, keep the best.
     Returns (parts, stats, V_final) where V_final includes any repair recolouring."""
     from .validate import validate
@@ -614,7 +641,7 @@ def brickify(V, palette, catalog, seeds=8, finish="tiles", use_bricks=True, max_
         for rnd in range(repair_rounds + 1):
             parts = Packer(W, palette, catalog, seed=s, finish=finish, use_bricks=use_bricks,
                            max_len=max_len, no_brick=no_brick, no_tile=no_tile,
-                           priority=priority).run()
+                           priority=priority, shapes=shapes).run()
             stats = validate(parts, W.shape, catalog, with_necks=False)
             if (stats["floating"] == 0 and stats["structures"] == 1) or rnd == repair_rounds:
                 break

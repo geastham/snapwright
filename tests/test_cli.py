@@ -65,4 +65,4 @@ def test_v01_model_still_renders(tmp_path):
     assert run("viewer", p, "--out", tmp_path / "v.html").returncode == 0
     r = run("book", p, "--out", tmp_path / "b.pdf")
     assert r.returncode == 0, r.stderr
-    assert "snapwright.model/0.2" in (tmp_path / "v.html").read_text()
+    assert "snapwright.model/0.3" in (tmp_path / "v.html").read_text()

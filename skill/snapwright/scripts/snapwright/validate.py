@@ -33,14 +33,35 @@ def occupancy(parts, shape):
     return occ, collisions
 
 
+def stud_socket_grids(parts, shape):
+    """Per-cell connectors: stud[x, z, y] where a part's top layer has a stud at that cell,
+    socket[x, z, y] where a part's bottom layer takes a stud there. Box parts have studs on
+    every top cell (if `studs`) and sockets on every bottom cell; shaped parts list theirs in
+    `top_cells` / `bottom_cells` (world [x, z])."""
+    stud = np.zeros(shape, dtype=bool)
+    sock = np.zeros(shape, dtype=bool)
+    for p in parts:
+        top, bot = p["y"] + p["h"] - 1, p["y"]
+        if "top_cells" in p:
+            for x, z in p["top_cells"]:
+                stud[x, z, top] = True
+        elif p["studs"]:
+            stud[p["x"]:p["x"] + p["dx"], p["z"]:p["z"] + p["dz"], top] = True
+        if "bottom_cells" in p:
+            for x, z in p["bottom_cells"]:
+                sock[x, z, bot] = True
+        else:
+            sock[p["x"]:p["x"] + p["dx"], p["z"]:p["z"] + p["dz"], bot] = True
+    return stud, sock
+
+
 def connection_graph(parts, occ):
-    """Return {(lower, upper): studs} for every stud contact."""
-    studs = np.array([p["studs"] for p in parts], dtype=bool)
+    """Return {(lower, upper): studs} for every stud contact: a stud on the lower part's top
+    cell under a socket on the upper part's bottom cell."""
+    stud, sock = stud_socket_grids(parts, occ.shape)
     a, b = occ[:, :, :-1], occ[:, :, 1:]
-    m = (a >= 0) & (b >= 0) & (a != b)
+    m = (a >= 0) & (b >= 0) & (a != b) & stud[:, :, :-1] & sock[:, :, 1:]
     la, ub = a[m], b[m]
-    keep = studs[la]
-    la, ub = la[keep], ub[keep]
     edges: dict = {}
     for i, j in zip(la.tolist(), ub.tolist()):
         edges[(i, j)] = edges.get((i, j), 0) + 1
@@ -208,8 +229,13 @@ def validate(parts, shape, catalog=None, with_necks=True) -> dict:
         dims = {"width_cm": 0, "depth_cm": 0, "height_cm": 0}
 
     kinds: dict = {}
+    shaped: dict = {}
+    shaped_cells = 0
     for p in parts:
         kinds[p["kind"]] = kinds.get(p["kind"], 0) + 1
+        if p.get("shape", "box") != "box":
+            shaped[p["shape"]] = shaped.get(p["shape"], 0) + 1
+            shaped_cells += p["dx"] * p["dz"] * p["h"]
 
     return {
         "parts": n,
@@ -226,6 +252,8 @@ def validate(parts, shape, catalog=None, with_necks=True) -> dict:
         "com_margin_mm": round(margin, 1),
         "unverified_combos": unverified,
         "kinds": kinds,
+        "shaped": shaped,
+        "shaped_cells": shaped_cells,
         **dims,
         "per_part_studs": per_part,
     }
@@ -267,14 +295,24 @@ def report_lines(stats) -> list[tuple[str, str]]:
         ("check", f"About {st['mass_g'] / 1000:.2f} kg, {st['width_cm']} x {st['depth_cm']} x "
                   f"{st['height_cm']} cm (estimated)"),
     ]
+    if st.get("base_cells"):
+        out.append(("change", f"Auto-repair: added a 2-plate base ({st['base_cells']:,} cells) so the "
+                              f"model doesn't tip over"))
     changes = [(st.get("recolored_cells", 0), "visible cell recoloured", "visible cells recoloured"),
                (st.get("trimmed_cells", 0), "overhang cell trimmed", "overhang cells trimmed"),
-               (st.get("added_cells", 0), "support cell added", "support cells added"),
+               (st.get("added_cells", 0) - st.get("base_cells", 0), "support cell added",
+                "support cells added"),
                (st.get("studded_cells", 0), "top cell uses a studded plate instead of a tile",
                 "top cells use studded plates instead of tiles")]
     for n, one, many in changes:
         if n:
             out.append(("change", f"Auto-repair: {n:,} {one if n == 1 else many}"))
+    sh = st.get("shaped") or {}
+    if sh:
+        names = {"slope": ("slope", "slopes"), "slope_inv": ("inverted slope", "inverted slopes"),
+                 "round": ("round part", "round parts")}
+        bits = [f"{n} {names[k][0] if n == 1 else names[k][1]}" for k, n in sorted(sh.items()) if k in names]
+        out.append(("note", "Surface shaping: " + ", ".join(bits) + " smooth the voxel steps"))
     necks = st.get("necks") or []
     for nk in necks[:3]:
         g = f" ({nk['mass_g']:.0f} g)" if nk.get("mass_g") is not None else ""

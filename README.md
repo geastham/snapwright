@@ -4,11 +4,13 @@ Design buildable brick models with Claude: photo, sketch or idea in; verified pa
 instruction book, 3D build viewer and parts lists out.
 
 - **Design**: Claude writes a short design file in a voxel DSL and iterates on previews.
-- **Brickify**: bricks, plates and tiles with staggered joints, anchored overhangs and a repair loop.
+- **Brickify**: bricks, plates and tiles with staggered joints, anchored overhangs and a repair loop;
+  slopes, inverted slopes and round parts where the surface tapers or curves; optional hollowing
+  with internal bracing; an automatic base for models that would tip.
 - **Check**: one structure, nothing floating, no collisions, balance, weak joints, colour availability.
 - **Document**: step-by-step PDF, three.js viewer with build playback, LDraw, BrickLink XML, Rebrickable CSV.
 
-Example: `examples/lighthouse` → 1,760 parts, 32.6 cm, 184 steps, all checks pass (about 20 s
+Example: `examples/lighthouse` → 1,761 parts, 32.6 cm, 185 steps, all checks pass (about 20 s
 with the book on a laptop). `make bench` builds a 5,000-part keep in under 2 minutes.
 
 ```bash

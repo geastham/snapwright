@@ -17,18 +17,27 @@ def occupancy(parts, shape):
 
 
 def contacts(parts, occ):
-    """{(lower, upper)} for every stud of a lower part inside an upper part."""
+    """{(lower, upper)} for every stud of a lower part inside a socket of an upper part."""
     out = set()
     NX, NZ, NY = occ.shape
     for p in parts:
-        if not p["studs"]:
-            continue
         top = p["y"] + p["h"]
         if top >= NY:
             continue
-        above = occ[p["x"]:p["x"] + p["dx"], p["z"]:p["z"] + p["dz"], top]
-        for q in set(above[above >= 0].tolist()):
-            out.add((p["id"], q))
+        if "top_cells" in p:
+            studs = [tuple(c) for c in p["top_cells"]]
+        elif p["studs"]:
+            studs = [(x, z) for x in range(p["x"], p["x"] + p["dx"]) for z in range(p["z"], p["z"] + p["dz"])]
+        else:
+            studs = []
+        for x, z in studs:
+            q = int(occ[x, z, top])
+            if q < 0 or q == p["id"]:
+                continue
+            Q = parts[q]
+            sockets = ({tuple(c) for c in Q["bottom_cells"]} if "bottom_cells" in Q else None)
+            if Q["y"] == top and (sockets is None or (x, z) in sockets):
+                out.add((p["id"], q))
     return out
 
 
@@ -112,7 +121,7 @@ def check_steps(parts, steps, occ, edges):
         clear_above = not any(before(q) for q in set(over[over >= 0].tolist()))
         clear_below = not any(by_now(q) and q != p["id"] for q in set(under[under >= 0].tolist()))
         down = (p["y"] == 0 or any(by_now(q) for q in below[p["id"]])) and clear_above
-        up = any(before(q) for q in above[p["id"]]) and clear_below and p["studs"]
+        up = any(before(q) for q in above[p["id"]]) and clear_below
         if not (down or up):
             problems.append(p["id"])
     return problems
@@ -136,7 +145,8 @@ def check_model(model, V_design, V_built, palette):
     assert st["recolored_cells"] == int(changed.sum()), "recolour count is not the real change"
     assert st["trimmed_cells"] == int(((V_design > 0) & (V_built == 0)).sum())
     added = int(((V_design == 0) & (V_built > 0)).sum())
-    assert st.get("added_cells", 0) == added, "cells added without being counted"
+    # an automatic base is already part of the design grid it was added to
+    assert st.get("added_cells", 0) - st.get("base_cells", 0) == added, "cells added without being counted"
     edges = contacts(parts, occ)
     reach = reachable_from_ground(parts, edges)
     assert st["floating"] == len(parts) - len(reach), "validator disagrees about floating parts"

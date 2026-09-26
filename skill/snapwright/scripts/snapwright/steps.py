@@ -37,6 +37,38 @@ def plan_steps(parts, edges, shape, max_per_step=8):
         below[j].add(i)
     placed = [False] * n
     steps = []
+    # parts directly above / below each part (touching, connected or not)
+    import numpy as np
+    occ = -np.ones(shape, dtype=np.int64)
+    for p in parts:
+        occ[p["x"]:p["x"] + p["dx"], p["z"]:p["z"] + p["dz"], p["y"]:p["y"] + p["h"]] = p["id"]
+    over, under = defaultdict(set), defaultdict(set)
+    for p in parts:
+        top, bot = p["y"] + p["h"], p["y"] - 1
+        fx = (slice(p["x"], p["x"] + p["dx"]), slice(p["z"], p["z"] + p["dz"]))
+        if top < shape[2]:
+            over[p["id"]] = {int(q) for q in np.unique(occ[fx[0], fx[1], top]) if q >= 0}
+        if bot >= 0:
+            under[p["id"]] = {int(q) for q in np.unique(occ[fx[0], fx[1], bot]) if q >= 0}
+
+    def no_sandwich(batch, from_below=False):
+        """Keep parts that don't close the last open side of a part still waiting to go on
+        (it would be trapped between two placed parts); the rest go in a later batch.
+        Accepted one at a time: bottom-up when pressing down, top-down when pressing up."""
+        order = sorted(batch, key=lambda i: (parts[i]["y"], i), reverse=from_below)
+        waiting = set(pending) - set(batch)
+        taken: set = set()
+
+        def shut(ids):
+            return any(placed[r] or r in taken for r in ids)
+        for c in order:
+            # c shuts the top of a waiting part under it (trapped if its bottom is shut) and
+            # the bottom of a waiting part over it (trapped if its top is shut)
+            if any(q in waiting and shut(under[q]) for q in under[c]) or \
+                    any(q in waiting and shut(over[q]) for q in over[c]):
+                continue
+            taken.add(c)
+        return [c for c in batch if c in taken] or batch[:1]
     by_level = defaultdict(list)
     for p in parts:
         by_level[p["y"]].append(p["id"])
@@ -78,7 +110,7 @@ def plan_steps(parts, edges, shape, max_per_step=8):
             up = [] if down else [pid for pid in pending if any(placed[q] for q in above[pid])]
             # a chain of overhangs goes on one link per step, top link first
             up = [pid for pid in up if not (above[pid] & set(up))]
-            now = down or up
+            now = no_sandwich(down) if down else no_sandwich(up, from_below=True)
             if not now:
                 break
             pending = [pid for pid in pending if pid not in set(now)]
