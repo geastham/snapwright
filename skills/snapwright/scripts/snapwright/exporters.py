@@ -212,11 +212,18 @@ def to_rebrickable_csv(parts, catalog) -> str:
     return buf.getvalue()
 
 
+def bricklink_url(pid, color, catalog) -> str:
+    """BrickLink's catalog page for a part in one colour (prices, shops that stock it)."""
+    from urllib.parse import quote
+    bl = catalog.by_id[pid].bricklink or pid
+    return f"https://www.bricklink.com/v2/catalog/catalogitem.page?P={quote(bl)}&idColor={catalog.colors[color]['bricklink']}"
+
+
 def to_csv(parts, catalog) -> str:
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["Part ID", "Part", "Colour", "BrickLink colour ID", "Qty", "Availability"])
+    w.writerow(["Part ID", "Part", "Colour", "BrickLink colour ID", "Qty", "Availability", "BrickLink link"])
     for pid, c, q in bom(parts):
         w.writerow([pid, catalog.by_id[pid].name, catalog.colors[c]["name"],
-                    catalog.colors[c]["bricklink"], q, catalog.available(pid, c)])
+                    catalog.colors[c]["bricklink"], q, catalog.available(pid, c), bricklink_url(pid, c, catalog)])
     return buf.getvalue()
