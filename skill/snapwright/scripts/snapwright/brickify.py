@@ -240,6 +240,29 @@ class Packer:
                                "x": x, "z": z, "y": y, "dx": dx, "dz": dz, "h": h, "rot": s["dir"],
                                "studs": bool(s["top_cells"]), "shape": t.shape, "dir": s["dir"],
                                "top_cells": s["top_cells"], "bottom_cells": s["bottom_cells"]})
+            self._uncover(t.shape, s["dir"], x, z, y, dx, dz, h)
+
+    def _uncover(self, shape, dir_, x, z, y, dx, dz, h):
+        """A shaped part doesn't fill its whole box, so some neighbours that counted as hidden
+        now show: the cells under a round part (its footprint's corners are open) and the
+        cells beside a slope's triangular ends. They keep their design colour instead of
+        taking the hidden-filler colour."""
+        NX, NZ, NY = self.shape
+        cells = []
+        if shape == "round" and y > 0:
+            cells.append((slice(x, x + dx), slice(z, z + dz), y - 1))
+        elif shape in ("slope", "slope_inv"):
+            ys = slice(y, y + h)
+            if dir_ in (0, 2):          # slopes along x: triangles face -z and +z
+                cells += [(slice(x, x + dx), z - 1, ys), (slice(x, x + dx), z + dz, ys)]
+            else:
+                cells += [(x - 1, slice(z, z + dz), ys), (x + dx, slice(z, z + dz), ys)]
+        for cx, cz, cy in cells:
+            if isinstance(cx, int) and not 0 <= cx < NX or isinstance(cz, int) and not 0 <= cz < NZ:
+                continue
+            sl = (cx, cz, cy)
+            free = (self.V[sl] > 0) & (self.owner[sl] < 0)
+            self.req[sl] = np.where(free, self.V[sl], self.req[sl])
 
     # ---- packing ----------------------------------------------------------
     def _score(self, x, z, dx, dz, y, pref):
