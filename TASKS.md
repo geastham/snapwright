@@ -1,9 +1,29 @@
 # Tasks
 
-Current milestone: **M5 Book and viewer polish** (branch `m5-polish`). M1-M4 merged (PRs #1,
-#3, #4, #5). Spec: SPEC.md §5 M5.
+Current milestone: **M6 Publishable skill** (branch `m6-publish`). M1-M5 merged (PRs #1,
+#3, #4, #5, #6). Spec: SPEC.md §5 M6.
 
-## M5 checklist
+## M6 checklist
+- [x] Eval set: 7 prompts with named assertions (photo sculpture, mosaic, kids model, IP
+      decline, tipping fix, LDraw export, STL import); inputs generated here (evals/files)
+- [x] skill-creator loop, iteration 1: 7 prompts with and without the skill, graded by
+      evals/grade.py (the same validator on every run), benchmark + review page
+- [x] Fix what the runs found (general causes): verified colours in the packer, staggered
+      seams in stacked plates, filler colour under round parts, thin mesh features, repair
+      loop joining chains of stranded groups, one-cell recolours, panel default plane,
+      mosaic palette, explicit availability wording
+- [ ] Iteration 2 (with skill; baselines reused), benchmark
+- [ ] Description tuned for triggering (run_loop on evals/trigger_eval.json, 20 queries)
+- [x] Rebrickable-verified catalog committed (CSV downloads, no key); sync-catalog
+      documented (CONTRIBUTING.md) and hardened (API: rebrickable ids, pagination, 429)
+- [x] CONTRIBUTING.md
+- [ ] README gallery: cover PNGs + viewer links (docs/gallery, GitHub Pages)
+- [ ] `make package` -> dist/snapwright.skill < 2 MB; self-contained check
+- [ ] PR, merge
+
+## M5 (done, PR #6)
+
+### M5 checklist
 - [x] PDF < 5 MB for 2,000 parts (lighthouse 5.5 MB, keep 20.5 MB at the start of M5)
 - [x] Sub-step numbering for big levels (12.1, 12.2 ... when a level takes 3+ steps)
 - [x] Bags of ~150 parts in build order, each opening with a "parts for this bag" page;
