@@ -98,7 +98,9 @@ Builds are deterministic: the same design file and seeds give the same model. Ad
   numbered steps and sub-steps with named-colour callouts, progress bar, finale
 - `<slug>-viewer.html`: self-contained 3D viewer: build playback, step-by-step (arrow keys)
   with new parts highlighted, exploded panels, record to video, parts list, checks
-  (`?step=N` opens paused at step N; `&explode=1` pulls panels out)
+  (`?step=N` opens paused at step N; `&explode=1` pulls panels out). three.js is embedded, so
+  it opens offline and from an attachment; `sw.py viewer model.json --out f.html --cdn` writes
+  a smaller copy that loads three.js from a CDN (for hosting on a website)
 - `<slug>.ldr`: LDraw with STEP markers (opens in LeoCAD, Studio, Mecabricks)
 - `<slug>-bricklink.xml`, `<slug>-rebrickable.csv`, `<slug>-parts.csv`
 - `model.json`: canonical model (schema in `references/geometry-and-checks.md`)

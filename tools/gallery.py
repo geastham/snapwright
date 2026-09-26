@@ -10,7 +10,6 @@ its design file.
 """
 import json
 import os
-import shutil
 import subprocess
 import sys
 
@@ -52,7 +51,9 @@ def main(names):
         m, out = build(name)
         slug, st = m["meta"]["slug"], m["stats"]
         cover(m, cat, os.path.join(OUT, f"{slug}.png"))
-        shutil.copy(os.path.join(out, f"{slug}-viewer.html"), os.path.join(OUT, f"{slug}.html"))
+        # the gallery is served online: load three.js from the CDN (keeps each file under 1 MB)
+        from snapwright.pipeline import write_viewer
+        write_viewer(m, os.path.join(OUT, f"{slug}.html"), cat, embed_three=False)
         index.append({"example": name, "slug": slug, "title": m["meta"]["title"], "parts": st["parts"],
                       "height_cm": st["height_cm"], "steps": len({s["label"].split(".")[0] for s in m["steps"]}),
                       "passed": st["passed"]})

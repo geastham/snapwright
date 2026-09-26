@@ -44,6 +44,7 @@ def main(argv=None):
     cp.add_argument("--mask", help="black/white image of the subject, if the background is busy")
     cp.add_argument("--out", default="out/compare")
     v = sub.add_parser("viewer"); v.add_argument("model"); v.add_argument("--out", required=True)
+    v.add_argument("--cdn", action="store_true", help="load three.js from a CDN instead of embedding it")
     k = sub.add_parser("book"); k.add_argument("model"); k.add_argument("--out", required=True)
     k.add_argument("--page", choices=["letter", "a4"], default="letter")
     s = sub.add_parser("sync-catalog")
@@ -68,7 +69,7 @@ def main(argv=None):
     elif a.cmd == "compare":
         pipeline.compare(a.design, a.ref, a.out, mask=a.mask)
     elif a.cmd == "viewer":
-        pipeline.write_viewer(pipeline.load_model(a.model), a.out)
+        pipeline.write_viewer(pipeline.load_model(a.model), a.out, embed_three=not a.cdn)
     elif a.cmd == "book":
         from snapwright.book import Book
         Book(pipeline.load_model(a.model), Catalog(), a.out, page=a.page).build()

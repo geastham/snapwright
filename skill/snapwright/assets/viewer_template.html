@@ -56,10 +56,40 @@
   <span aria-live="polite">Step <b id="now">0</b> of <span id="tot">0</span> <span id="bag" style="color:var(--soft)"></span></span>
 </footer>
 <script id="model" type="application/json">__MODEL_JSON__</script>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+<div id="loadErr" role="alert" style="display:none;position:fixed;inset:auto 16px 16px 16px;z-index:9;padding:14px 16px;border-radius:10px;background:#fff3f0;color:#6b1d10;font:14px/1.45 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.15)"></div>
+<!-- three.js (MIT, (c) three.js authors) is embedded below so the viewer works offline and in
+     sandboxed previews; a viewer written without it loads the same version from a CDN. -->
+<script id="three-src" type="text/plain">__THREE_SRC__</script>
+<script id="orbit-src" type="text/plain">__ORBIT_SRC__</script>
+<script>
+(function () {
+  var CDN = 'https://cdn.jsdelivr.net/npm/three@0.170.0/';
+  function blob(src) { return URL.createObjectURL(new Blob([src], { type: 'text/javascript' })); }
+  window.__viewerFail = function (why) {
+    if (window.__VIEWER_OK__) return;
+    var el = document.getElementById('loadErr');
+    el.style.display = 'block';
+    el.textContent = 'The 3D view could not start (' + (why && why.message ? why.message : why) + '). ' +
+      'Open this file directly in a desktop browser (Chrome, Edge, Firefox or Safari) rather than a ' +
+      'preview pane; it needs WebGL. The parts list and checks above still work.';
+  };
+  window.addEventListener('unhandledrejection', function (e) { window.__viewerFail(e.reason); });
+  setTimeout(function () { if (!window.__VIEWER_OK__) window.__viewerFail('timed out'); }, 12000);
+  var three = document.getElementById('three-src').textContent;
+  var orbit = document.getElementById('orbit-src').textContent;
+  window.__loadThree = async function () {
+    var threeURL = three.length > 1000 ? blob(three) : CDN + 'build/three.module.js';
+    if (orbit.length < 1000) orbit = await (await fetch(CDN + 'examples/jsm/controls/OrbitControls.js')).text();
+    var orbitURL = blob(orbit.replace(/from\s*['"]three['"]/g, "from '" + threeURL + "'"));
+    return [await import(threeURL), (await import(orbitURL)).OrbitControls];
+  };
+})();
+</script>
 <script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+let THREE, OrbitControls;
+try {
+  [THREE, OrbitControls] = await window.__loadThree();
+} catch (e) { window.__viewerFail(e); throw e; }
 const M = JSON.parse(document.getElementById('model').textContent);
 const $ = id => document.getElementById(id);
 const S = 8, P = 3.2;             // mm per stud, per plate
@@ -74,7 +104,11 @@ $('disc').textContent = M.meta.disclaimer || '';
 
 // ---------- scene ----------
 const canvas = $('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+} catch (e) { window.__viewerFail(e); throw e; }
+window.__VIEWER_OK__ = true;
 renderer.setClearColor(0x000000, 0);   // transparent: the themed page background shows through
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 const scene = new THREE.Scene();
