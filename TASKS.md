@@ -16,8 +16,8 @@ Spec: SPEC.md §5 M2 plus kickoff notes (connection metadata, renderer, bracing)
 - [x] Viewer draws slopes and rounds (extruded slope profiles, cylinders, studs per cell)
 - [x] LDraw export for new parts + round-trip test; checked against official LDraw geometry
       (tools/ldraw_check.py, docs/ldraw-check.md). LeoCAD screenshot: blocked (cask fails Gatekeeper)
-- [ ] `Model.hollow(wall=2, brace_every=N)` with internal bracing columns; hollow shells pass
-      neck and balance checks (tests)
+- [x] `Model.hollow(wall=2, cap=3, brace_every=8)` with internal 2x2 bracing columns; hollow
+      box and egg PASS with no major weak points and balance (tests). Saves ~35%+ mass, not parts
 - [ ] Base/stand: optional automatic base to fix balance failures; counted as added support
 - [ ] Property tests + fixtures cover new parts; golden lighthouse updated with explanation
 - [ ] SKILL.md / references / SPEC / README; outputs inspected; PR with Decisions

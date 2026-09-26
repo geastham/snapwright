@@ -124,6 +124,40 @@ class Model:
                 self.V[xi] = self.V[src]
         return self
 
+    def hollow(self, wall: int = 2, cap: int = 3, brace_every: int = 8, brace: int = 2,
+               floor: bool = True):
+        """Hollow out solid masses to save plastic, weight and cost (hidden solid interiors
+        already pack into big bricks, so the part count barely changes). Keeps a shell `wall`
+        studs thick at the sides and `cap` plates thick at top and bottom, plus `brace` x
+        `brace` internal columns every `brace_every` studs from floor to ceiling. The checks
+        pass without braces (a staggered plate cap hangs from the walls), but a real ceiling
+        of plates sags over long spans, which software doesn't model: braces keep unsupported
+        spans to brace_every - brace studs. brace_every=0 turns them off. Only cells nobody
+        can see are removed; cells behind transparent colours count as seen. floor=False
+        opens the bottom too. Returns how many voxels were removed."""
+        from scipy import ndimage
+        clear = np.isin(self.V, [i + 1 for i, k in enumerate(self.palette) if k.startswith("trans")])
+        solid = (self.V > 0) & ~clear
+        struct = np.ones((2 * wall + 1, 2 * wall + 1, 2 * cap + 1), dtype=bool)
+        if floor:
+            inner = ndimage.binary_erosion(solid, structure=struct, border_value=0)
+        else:  # treat the table as solid so the hollow reaches y = 0
+            padded = np.concatenate([np.ones(solid.shape[:2] + (cap,), bool), solid], axis=2)
+            inner = ndimage.binary_erosion(padded, structure=struct, border_value=0)[:, :, cap:]
+            inner &= solid
+        if brace_every and brace:
+            xi = np.arange(self.NX)[:, None]
+            zi = np.arange(self.NZ)[None, :]
+            ox = (self.NX // 2 - brace // 2) % brace_every
+            oz = (self.NZ // 2 - brace // 2) % brace_every
+            cols = (((xi - ox) % brace_every) < brace) & (((zi - oz) % brace_every) < brace)
+            inner &= ~cols[:, :, None]
+        n = int(inner.sum())
+        self.V[inner] = 0
+        self.notes.append(f"hollowed: {n} hidden voxels removed (wall {wall}, cap {cap}, "
+                          f"braces {brace}x{brace} every {brace_every})")
+        return n
+
     # ---- images ------------------------------------------------------
     def mosaic(self, image_path: str, colors: list[str] | None = None, mode: str = "flat",
                base_color: str = "black", depth: int = 2, dither: bool = False,
