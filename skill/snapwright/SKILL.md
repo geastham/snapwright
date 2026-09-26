@@ -102,6 +102,9 @@ Builds are deterministic: the same design file and seeds give the same model. Ad
   it opens offline and from an attachment; `sw.py viewer model.json --out f.html --cdn` writes
   a smaller copy that loads three.js from a CDN (for hosting on a website)
 - `<slug>.ldr`: LDraw with STEP markers (opens in LeoCAD, Studio, Mecabricks)
+- on request, a build video (the model assembling itself, then its other sides):
+  `sw.py video out/model.json --out out/build.mp4 [--size 1080x1350] [--seconds 24]`; MP4 needs
+  ffmpeg (else an animated WebP); ~0.3 s per frame for a 3,000-part model
 - `<slug>-bricklink.xml`, `<slug>-rebrickable.csv`, `<slug>-parts.csv`
 - `model.json`: canonical model (schema in `references/geometry-and-checks.md`)
 
