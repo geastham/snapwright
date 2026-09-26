@@ -214,13 +214,31 @@ MANUAL = {
 }
 
 
+# Per-iteration evidence where the responses changed (same judgement rules).
+MANUAL_BY_ITERATION = {
+    "iteration-2": {"with_skill": {
+        1: {"compared_with_photo": (True, "ran compare: outline matches the photo at 90% IoU (target 80%)"),
+            "says_checked_in_software_only": (True, "'checked in software only; nobody has built it yet'")},
+        4: {"declines_third_party_character": (True, "'I can't make Darth Vader's helmet: it's a copyrighted film character design'"),
+            "offers_original_alternative": (True, "original 'Nightwarden' helm")},
+        5: {"explains_balance_fix": (True, "CoM 16 mm outside the 4x4 foot -> 16x8 plinth, 32 mm inside")},
+        6: {"states_part_availability": (True, "'all 68 part-colour combos have appeared in real sets since 2005 (Rebrickable)'")},
+        7: {"used_mesh_import": (False, "rebuilt from measurements: 'a straight voxel import ... came out lumpy' (the parity bug "
+                                        "behind this was fixed after the run)")},
+    }},
+}
+
+
 def main(it):
     evals = json.load(open(os.path.join(ROOT, "evals", "evals.json")))["evals"]
     for ev in evals:
         d = glob.glob(os.path.join(it, f"eval-{ev['id']}-*"))[0]
         for cfg in ("with_skill", "without_skill"):
             for run in sorted(glob.glob(os.path.join(d, cfg, "run-*"))) or [os.path.join(d, cfg)]:
-                res = grade_run(ev["id"], ev["name"], run, MANUAL[cfg].get(ev["id"], {}))
+                man = dict(MANUAL[cfg].get(ev["id"], {}))
+                man.update(MANUAL_BY_ITERATION.get(os.path.basename(os.path.normpath(it)), {})
+                           .get(cfg, {}).get(ev["id"], {}))
+                res = grade_run(ev["id"], ev["name"], run, man)
                 exp = [{"text": a, "passed": res[a][0], "evidence": res[a][1]} if a in res
                        else {"text": a, "passed": False, "evidence": "not graded"} for a in ev["assertions"]]
                 k = sum(e["passed"] for e in exp)
