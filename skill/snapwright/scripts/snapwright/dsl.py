@@ -241,13 +241,17 @@ class Model:
         at: first stud along the face (x for z faces, z for x faces).
         plane: the face plane as a stud boundary (default: the model's surface there).
         top: plate line of the panel's top edge (default: the top of the wall behind it).
+             With `top` given, the default plane is the surface across the panel's own rows.
         width, height: studs across and down (even heights keep both edges on plate lines).
         depth: plate layers (2 = a plate layer plus a tile layer).
         The panel's space is carved out of this model. Returns the panel."""
         from .snot import FACES, PanelSpec
         f = FACES[face]
+        rows = None
+        if top is not None:   # the plates the panel covers: y1 = top, down height studs
+            rows = (max(0, int(top) - int(np.ceil(height * 2.5))), int(top))
         if plane is None:
-            plane = self._surface_plane(f, at, width)
+            plane = self._surface_plane(f, at, width, rows)
         spec = PanelSpec(name, f, int(at), int(plane), int(top if top is not None else self.NY),
                          int(width), int(height), int(depth))
         if top is None:   # the top of the wall right behind the panel (lowest across its columns)
@@ -268,11 +272,16 @@ class Model:
         self.panels.append(p)
         return p
 
-    def _surface_plane(self, f, at, width):
-        """Where the model's surface is on face f across the panel's columns (outermost)."""
+    def _surface_plane(self, f, at, width, rows=None):
+        """Where the model's surface is on face f across the panel's columns (outermost), within
+        the panel's own plates if known (paws or a base further out lower down don't count)."""
         from .snot import DIR_VEC
         nx, nz = DIR_VEC[f]
         occ = self.V > 0
+        if rows is not None and occ[:, :, rows[0]:rows[1]].any():
+            occ = occ.copy()
+            occ[:, :, :rows[0]] = False
+            occ[:, :, rows[1]:] = False
         if nz:
             cols = occ[at:at + width].any(axis=(0, 2))            # filled z indices
             idx = np.nonzero(cols)[0]
@@ -287,6 +296,7 @@ class Model:
                base_layers: int = 2):
         """Photo -> mosaic sized to this model.
 
+        Colours: `colors`, else every opaque colour made as a 1x1 tile and plate.
         flat:    lies on the ground; `base_layers` plate layers of base_color (packed with
                  staggered seams so the base holds itself together) + 1 picture layer (tiles
                  with the default finish). The grid grows to base_layers + 1 plates if needed.
@@ -300,8 +310,7 @@ class Model:
             w, h = self.NX, self.NY
         img = img.resize((w, h), Image.LANCZOS)
         px = np.asarray(img).astype(float)
-        keys = colors or [k for k, c in self.catalog.colors.items()
-                          if c["tier"] == "core" and not k.startswith("trans")]
+        keys = colors or self.catalog.pixel_colours()
         cache: dict = {}
         grid = np.empty((w, h), dtype=object)
         err = np.zeros_like(px)

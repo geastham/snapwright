@@ -182,3 +182,21 @@ def test_panel_blocked_by_parts_in_front_fails():
     pn.box(0, 0, 0, 8, 6, 2, "red")
     model, _ = solve(m, seeds=1)
     assert any("can't slide" in f for f in model["stats"]["failures"]), model["stats"]["failures"]
+
+
+def test_panel_default_plane_uses_its_own_rows():
+    """A face panel high on a head must sit on the head's front, not on the front of paws
+    that stick out further lower down (the panel then had no side studs to clip onto)."""
+    from conftest import model_from_src, solve
+    m = model_from_src('''
+model = Model(12, 16, 60)
+model.box(2, 2, 0, 10, 14, 24, "tan")        # body
+model.box(3, 12, 0, 9, 16, 9, "tan")         # paws, sticking out 2 studs further
+model.box(3, 4, 24, 9, 12, 45, "tan")        # head, its front at z = 12
+face = model.panel("Face", face="+z", at=4, top=42, width=4, height=4, depth=2)
+face.box(0, 0, 0, 4, 4, 2, "black")
+''')
+    spec = m.panels[0].spec
+    assert spec.plane == 12, spec.plane
+    model, _ = solve(m, seeds=1)
+    assert model["stats"]["passed"], model["stats"]["failures"]
