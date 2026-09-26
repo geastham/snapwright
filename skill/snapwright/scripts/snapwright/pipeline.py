@@ -129,7 +129,7 @@ def build(design, out, seeds=8, finish="tiles", audience="adult", max_per_step=N
     np.savez_compressed(os.path.join(out, "voxels.npz"), V=m.V, V_built=V_final, palette=np.array(m.palette))
     tm.lap("exports")
     if viewer:
-        write_viewer(model, os.path.join(out, f"{slug}-viewer.html"))
+        write_viewer(model, os.path.join(out, f"{slug}-viewer.html"), cat)
         tm.lap("viewer")
     if book:
         if ok or not strict:
@@ -211,12 +211,24 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
     return model, V_final
 
 
-def write_viewer(model, path):
+def _viewer_part(p, cat):
+    """The fields the viewer needs; shaped parts add shape, dir, catalog L / lip, studs."""
+    q = {k: p[k] for k in ("x", "y", "z", "dx", "dz", "h", "color", "studs", "step")}
+    if p.get("shape", "box") != "box":
+        t = cat.by_id.get(p["part"]) if cat else None
+        q.update(shape=p["shape"], dir=p.get("dir", 0), L=t.L if t else max(p["dx"], p["dz"]),
+                 lip=t.lip if t else 0.5)
+        if "top_cells" in p:
+            q["tc"] = p["top_cells"]
+    return q
+
+
+def write_viewer(model, path, catalog=None):
+    cat = catalog or Catalog()
     with open(os.path.join(ASSETS, "viewer_template.html")) as f:
         html = f.read()
     slim = dict(model)
-    slim["parts"] = [{k: p[k] for k in ("x", "y", "z", "dx", "dz", "h", "color", "studs", "step")}
-                     for p in model["parts"]]
+    slim["parts"] = [_viewer_part(p, cat) for p in model["parts"]]
     slim["steps"] = [{"n": s["n"]} for s in model["steps"]]
     slim["report"] = [{"kind": k, "text": t} for k, t in report_lines(model["stats"])]
     data = json.dumps(slim, separators=(",", ":")).replace("</", "<\\/")

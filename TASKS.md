@@ -13,7 +13,7 @@ Spec: SPEC.md §5 M2 plus kickoff notes (connection metadata, renderer, bracing)
 - [x] Surface-normal pass: slopes on stair edges of tapers/curves, inverted slopes under
       overhangs, rounds on convex corners and thin columns; counted and reported
 - [x] Renderer draws slopes, inverted slopes and rounds (book steps, icons, previews)
-- [ ] Viewer draws slopes and rounds
+- [x] Viewer draws slopes and rounds (extruded slope profiles, cylinders, studs per cell)
 - [ ] LDraw export for new parts + round-trip test; LeoCAD check documented with screenshots
 - [ ] `Model.hollow(wall=2, brace_every=N)` with internal bracing columns; hollow shells pass
       neck and balance checks (tests)

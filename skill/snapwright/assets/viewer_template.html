@@ -88,36 +88,73 @@ ground.rotation.x = -Math.PI / 2; ground.position.set(cx, -0.05, cz); scene.add(
 const order = parts.map((p, i) => i).sort((a, b) => parts[a].step - parts[b].step || parts[a].y - parts[b].y);
 const boxGeo = new THREE.BoxGeometry(1, 1, 1);
 const mat = new THREE.MeshStandardMaterial({ roughness: .45, metalness: 0 });
-const boxes = new THREE.InstancedMesh(boxGeo, mat, parts.length);
+// shaped parts: one instanced mesh per geometry (slope profile or cylinder)
+function slopeGeo(L, h, lip, inverted) {  // width 1 (x), length L*S along local +z (low side), height h*P
+  const l = L * S, hh = h * P, lp = lip * P, back = L > 1 ? S : 0, sh = new THREE.Shape();
+  // drawn in (X = z, Y = y) and extruded along Z; rotateY(-pi/2) turns X onto local z and the
+  // extrusion onto -x (a rotation, not a mirror, so faces keep their winding)
+  const pts = inverted
+    ? [[-l / 2, 0], [-l / 2 + back, 0], [l / 2, hh - lp], [l / 2, hh], [-l / 2, hh]]
+    : [[-l / 2, 0], [l / 2, 0], [l / 2, lp], [-l / 2 + back, hh], [-l / 2, hh]];
+  sh.moveTo(pts[0][0], pts[0][1]); for (const [a, b] of pts.slice(1)) sh.lineTo(a, b);
+  const g = new THREE.ExtrudeGeometry(sh, { depth: 1, bevelEnabled: false });
+  g.rotateY(-Math.PI / 2); g.translate(0.5, 0, 0); return g;
+}
+const groups = new Map();              // key -> {geo, idx: [part indices]}
+const keyOf = p => p.shape === 'round' ? `r${p.dx}:${p.h}` : p.shape ? `${p.shape}:${p.L}:${p.h}:${p.lip}` : 'box';
+for (const i of order) { const p = parts[i], k = keyOf(p);
+  if (!groups.has(k)) groups.set(k, { p, idx: [] }); groups.get(k).idx.push(i); }
+for (const [k, g] of groups) {
+  const p = g.p;
+  g.geo = k === 'box' ? boxGeo : p.shape === 'round'
+    ? new THREE.CylinderGeometry(p.dx / 2 * S * .98, p.dx / 2 * S * .98, p.h * P - 0.12, 24).translate(0, p.h * P / 2, 0)
+    : slopeGeo(p.L, p.h, p.lip, p.shape === 'slope_inv');
+  g.mesh = new THREE.InstancedMesh(g.geo, mat, g.idx.length);
+  g.idx.forEach((i, n) => g.mesh.setColorAt(n, new THREE.Color(M.colors[parts[i].color].hex)));
+  scene.add(g.mesh);
+}
 const studGeo = new THREE.CylinderGeometry(2.4, 2.4, 1.8, 16);
 const studList = [];
-for (const i of order) { const p = parts[i]; if (!p.studs) continue;
+for (const i of order) { const p = parts[i];
+  if (p.tc) { for (const [a, b] of p.tc) studList.push([i, a - p.x, b - p.z]); continue; }
+  if (!p.studs) continue;
   for (let a = 0; a < p.dx; a++) for (let b = 0; b < p.dz; b++) studList.push([i, a, b]); }
 const studs = new THREE.InstancedMesh(studGeo, mat, studList.length);
 const col = new THREE.Color(), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3();
 const hex = p => M.colors[p.color].hex;
-order.forEach((i, k) => boxes.setColorAt(k, col.set(hex(parts[i]))));
+const up = new THREE.Vector3(0, 1, 0), ROT = [Math.PI / 2, 0, -Math.PI / 2, Math.PI];  // local +z -> +x, +z, -x, -z
 studList.forEach(([i], k) => studs.setColorAt(k, col.set(hex(parts[i]))));
-scene.add(boxes, studs);
+scene.add(studs);
 const gap = 0.12;
 function place(t) {                 // t = build time in steps (fractional)
-  let nb = 0, ns = 0;
-  for (const i of order) { const p = parts[i];
-    const local = t - (p.step - 1); if (local <= 0) break;
-    const drop = Math.max(0, 1 - local * 1.6) ** 2 * 60;
-    v.set((p.x + p.dx / 2) * S, (p.y + p.h / 2) * P + drop, (p.z + p.dz / 2) * S);
-    sc.set(p.dx * S - gap, p.h * P - gap, p.dz * S - gap);
-    boxes.setMatrixAt(nb++, m4.compose(v, q, sc));
+  for (const [k, g] of groups) {
+    let n = 0;
+    for (const i of g.idx) { const p = parts[i];
+      const local = t - (p.step - 1); if (local <= 0) break;
+      const drop = Math.max(0, 1 - local * 1.6) ** 2 * 60;
+      if (k === 'box') {
+        v.set((p.x + p.dx / 2) * S, (p.y + p.h / 2) * P + drop, (p.z + p.dz / 2) * S);
+        sc.set(p.dx * S - gap, p.h * P - gap, p.dz * S - gap); q.identity();
+      } else {
+        v.set((p.x + p.dx / 2) * S, p.y * P + drop, (p.z + p.dz / 2) * S);
+        const width = p.shape === 'round' ? 1 : (p.dir % 2 ? p.dx : p.dz);
+        sc.set(p.shape === 'round' ? 1 : width * S - gap, 1, 1);
+        q.setFromAxisAngle(up, p.shape === 'round' ? 0 : ROT[p.dir]);
+      }
+      g.mesh.setMatrixAt(n++, m4.compose(v, q, sc));
+    }
+    g.mesh.count = n; g.mesh.instanceMatrix.needsUpdate = true;
   }
-  boxes.count = nb;
+  let ns = 0;
+  q.identity();
   for (const [i, a, b] of studList) { const p = parts[i];
-    const local = t - (p.step - 1); if (local <= 0) break;
+    const local = t - (p.step - 1); if (local <= 0) continue;
     const drop = Math.max(0, 1 - local * 1.6) ** 2 * 60;
     v.set((p.x + a + .5) * S, (p.y + p.h) * P + .9 + drop, (p.z + b + .5) * S);
     studs.setMatrixAt(ns++, m4.compose(v, q, sc.set(1, 1, 1)));
   }
   studs.count = ns;
-  boxes.instanceMatrix.needsUpdate = studs.instanceMatrix.needsUpdate = true;
+  studs.instanceMatrix.needsUpdate = true;
 }
 
 // ---------- playback ----------
