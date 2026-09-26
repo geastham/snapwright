@@ -18,7 +18,8 @@ Spec: SPEC.md §5 M2 plus kickoff notes (connection metadata, renderer, bracing)
       (tools/ldraw_check.py, docs/ldraw-check.md). LeoCAD screenshot: blocked (cask fails Gatekeeper)
 - [x] `Model.hollow(wall=2, cap=3, brace_every=8)` with internal 2x2 bracing columns; hollow
       box and egg PASS with no major weak points and balance (tests). Saves ~35%+ mass, not parts
-- [ ] Base/stand: optional automatic base to fix balance failures; counted as added support
+- [x] Base/stand: `--base auto` (default) stands a tipping model on a 2-plate base, counted as
+      added support and reported; `Model.base()` for explicit stands; `--base off` to disable
 - [ ] Property tests + fixtures cover new parts; golden lighthouse updated with explanation
 - [ ] SKILL.md / references / SPEC / README; outputs inspected; PR with Decisions
 

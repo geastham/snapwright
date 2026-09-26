@@ -32,6 +32,8 @@ def main(argv=None):
     b.add_argument("--page", choices=["letter", "a4"], default="letter")
     b.add_argument("--no-book", action="store_true"); b.add_argument("--no-viewer", action="store_true")
     b.add_argument("--no-strict", action="store_true", help="write a draft book even if checks fail")
+    b.add_argument("--base", choices=["auto", "off"], default="auto",
+                   help="auto: stand a model that would tip on a 2-plate base (counted and reported)")
     b.add_argument("--no-shapes", action="store_true",
                    help="only bricks, plates and tiles: no slopes or round parts")
     b.add_argument("--profile", action="store_true",
@@ -48,7 +50,7 @@ def main(argv=None):
     elif a.cmd == "build":
         kw = dict(seeds=a.seeds, finish=a.finish, audience=a.audience, max_per_step=a.max_per_step,
                   book=not a.no_book, viewer=not a.no_viewer, page=a.page, strict=not a.no_strict,
-                  shapes=not a.no_shapes)
+                  shapes=not a.no_shapes, base=a.base)
         if a.profile:
             m = _profiled_build(a.design, a.out, kw)
         else:

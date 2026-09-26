@@ -145,7 +145,8 @@ def check_model(model, V_design, V_built, palette):
     assert st["recolored_cells"] == int(changed.sum()), "recolour count is not the real change"
     assert st["trimmed_cells"] == int(((V_design > 0) & (V_built == 0)).sum())
     added = int(((V_design == 0) & (V_built > 0)).sum())
-    assert st.get("added_cells", 0) == added, "cells added without being counted"
+    # an automatic base is already part of the design grid it was added to
+    assert st.get("added_cells", 0) - st.get("base_cells", 0) == added, "cells added without being counted"
     edges = contacts(parts, occ)
     reach = reachable_from_ground(parts, edges)
     assert st["floating"] == len(parts) - len(reach), "validator disagrees about floating parts"

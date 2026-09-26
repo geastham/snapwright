@@ -158,6 +158,29 @@ class Model:
                           f"braces {brace}x{brace} every {brace_every})")
         return n
 
+    def base(self, color: str = "dark_bluish_gray", layers: int = 2, margin: int = 1):
+        """Stand the model on a `layers`-plate base covering its footprint plus `margin`
+        studs all round (the grid grows to fit; the model moves up). A base widens the
+        footprint so the model can't tip, and its staggered plates tie the bottom together.
+        Returns the number of base voxels."""
+        filled = np.argwhere(self.V > 0)
+        if not len(filled):
+            return 0
+        lo, hi = filled.min(0), filled.max(0) + 1
+        x0, z0 = lo[0] - margin, lo[1] - margin
+        x1, z1 = hi[0] + margin, hi[1] + margin
+        px0, pz0 = max(0, -x0), max(0, -z0)
+        px1, pz1 = max(0, x1 - self.NX), max(0, z1 - self.NZ)
+        self.V = np.pad(self.V, ((px0, px1), (pz0, pz1), (layers, 0)))
+        self.NX, self.NZ, self.NY = self.V.shape
+        self._grid()
+        x0, z0, x1, z1 = x0 + px0, z0 + pz0, x1 + px0, z1 + pz0
+        idx = self._idx(color)
+        self.V[x0:x1, z0:z1, :layers] = idx
+        n = int((x1 - x0) * (z1 - z0) * layers)
+        self.notes.append(f"base: {layers} plates of {color} under the footprint (+{margin} studs)")
+        return n
+
     # ---- images ------------------------------------------------------
     def mosaic(self, image_path: str, colors: list[str] | None = None, mode: str = "flat",
                base_color: str = "black", depth: int = 2, dither: bool = False,

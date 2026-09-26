@@ -295,9 +295,13 @@ def report_lines(stats) -> list[tuple[str, str]]:
         ("check", f"About {st['mass_g'] / 1000:.2f} kg, {st['width_cm']} x {st['depth_cm']} x "
                   f"{st['height_cm']} cm (estimated)"),
     ]
+    if st.get("base_cells"):
+        out.append(("change", f"Auto-repair: added a 2-plate base ({st['base_cells']:,} cells) so the "
+                              f"model doesn't tip over"))
     changes = [(st.get("recolored_cells", 0), "visible cell recoloured", "visible cells recoloured"),
                (st.get("trimmed_cells", 0), "overhang cell trimmed", "overhang cells trimmed"),
-               (st.get("added_cells", 0), "support cell added", "support cells added"),
+               (st.get("added_cells", 0) - st.get("base_cells", 0), "support cell added",
+                "support cells added"),
                (st.get("studded_cells", 0), "top cell uses a studded plate instead of a tile",
                 "top cells use studded plates instead of tiles")]
     for n, one, many in changes:
