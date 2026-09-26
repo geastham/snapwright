@@ -66,21 +66,36 @@ Notes (printed in the book and viewer; fix them when you can):
 | surface shaping | slopes / rounds replace square steps on visible tapers and curves | none needed; `--no-shapes` if you want only bricks, plates and tiles |
 | unverified_combos | part-colour pair not in a verified catalog | run `sw.py sync-catalog`, or swap to a core colour |
 
+## Sideways panels (SNOT)
+A panel is its own small grid built flat (x across, y layers up, z rows) and tipped onto a
+face: panel x -> right seen from the front, panel y -> out, panel z -> down (a rotation, not a
+mirror). Side-stud bricks (87087, 11211, 30414) have their side studs 5.6 mm above their
+bottom; with the panel's top edge on plate line T, anchor row j (even) sits on plates
+T - 3 - 2.5 j, so every second panel row clips onto side studs. Checks per panel: one
+structure, every part held through the side studs, at least 2 side studs, nothing of the model
+in its space; the panel's mass counts in the balance check. Failures are prefixed with the
+panel's name. Fix "held by 0 side studs" by making the model solid right behind the panel.
+
 ## Steps
 Bottom-up by plate level. Each part is placed when it can click onto something already
 placed and there is room to press it on: down onto parts below, or (overhangs) up into
 parts above with nothing below it yet. Steps are compact regions of at most `max_per_step`
 parts. The camera turns only between levels, to the quarter view that shows the most new
 parts (id-buffer render), or for a single step when two or more of its parts would be hidden.
+Each sideways panel's steps (`kind: subassembly`, `sub: name`) come right after its last
+anchor brick, followed by an `attach` step (no parts).
 
-## model.json (schema snapwright.model/0.3)
+## model.json (schema snapwright.model/0.4)
 `meta` (title, slug, author, disclaimer, finish, audience), `grid.shape` [x, z, y],
 `colors` (used subset of the catalog), `parts[]` {id, part, name, kind, color, x, z, y, dx,
 dz, h, rot, studs, step}, `steps[]` {n, parts[], kind: build|overhang|unanchored, level,
 view 0-3}, `bom` [[part, color, qty]], `stats` (see validate.py), `stats.passed`,
 `stats.failures`. Shaped parts add `shape` (slope, slope_inv, round), `dir` (0-3: low side
 faces +x, +z, -x, -z) and `top_cells` / `bottom_cells` ([x, z] cells with studs / sockets).
-`stats.shaped`, `shaped_cells`, `base_cells`. `stats.necks[]` {plate, strength (studs), parts_above, mass_g, cut
+`stats.shaped`, `shaped_cells`, `base_cells`. `subassemblies[]` {name, spec {face, a0, plane,
+top, W, H, D}, grid, parts (panel coordinates), anchor_studs, held, face_offset_mm, stats,
+failures}; anchor bricks in `parts` have shape snot, `dir`, `side_cells`, `anchor` (panel
+name) and `row`. `stats.panels` summarises them. `stats.necks[]` {plate, strength (studs), parts_above, mass_g, cut
 [[lower, upper] part ids]}. Change counts: recolored_cells, trimmed_cells, added_cells,
-studded_cells; floating_voxels, design_voxels. Schema 0.1 and 0.2 files are upgraded on
+studded_cells; floating_voxels, design_voxels. Schema 0.1 to 0.3 files are upgraded on
 read (`pipeline.load_model`).

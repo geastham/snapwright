@@ -1,6 +1,6 @@
 {
  "schema": "snapwright.catalog/0.2",
- "note": "Part IDs follow BrickLink/LDraw numbering. 'core' colours are widely produced in the basic brick/plate/tile moulds listed here; 'limited' colours exist but not in every mould. Run `sw.py sync-catalog` with a Rebrickable API key to replace this with verified part-colour availability before publishing a parts list. Schema 0.2 adds connection metadata: `top` / `bottom` list the part's cells (i along L from the back/high row, j along W) that have a stud on top / take a stud underneath ('all' or 'none' for simple parts); `shape` is box, slope, slope_inv or round; `ldraw` is the LDraw file and `ldraw_origin` where its origin sits (top: top centre; stud_row_top: top centre of the back row; bottom: bottom centre). `auto` parts may be placed by the surface-shaping pass.",
+ "note": "Part IDs follow BrickLink/LDraw numbering. 'core' colours are widely produced in the basic brick/plate/tile moulds listed here; 'limited' colours exist but not in every mould. Run `sw.py sync-catalog` with a Rebrickable API key to replace this with verified part-colour availability before publishing a parts list. Schema 0.2 adds connection metadata: `top` / `bottom` list the part's cells (i along L from the back/high row, j along W) that have a stud on top / take a stud underneath ('all' or 'none' for simple parts); `shape` is box, slope, slope_inv or round; `ldraw` is the LDraw file and `ldraw_origin` where its origin sits (top: top centre; stud_row_top: top centre of the back row; bottom: bottom centre). `auto` parts may be placed by the surface-shaping pass. `side` lists cells (i, j) with a stud on the part's side face; side studs point along the part's local +z (LDraw -Z) and sit `side_mm` above the part's bottom.",
  "units": {
   "stud_mm": 8.0,
   "plate_mm": 3.2,
@@ -971,6 +971,85 @@
    "bottom": "all",
    "ldraw": "3941.dat",
    "auto": true,
+   "ldraw_origin": "top"
+  },
+  {
+   "id": "87087",
+   "name": "Brick 1 x 1 with Stud on 1 Side",
+   "kind": "snot",
+   "L": 1,
+   "W": 1,
+   "h": 3,
+   "studs": true,
+   "shape": "snot",
+   "top": "all",
+   "bottom": "all",
+   "side": [
+    [
+     0,
+     0
+    ]
+   ],
+   "side_mm": 5.6,
+   "ldraw": "87087.dat",
+   "ldraw_origin": "top"
+  },
+  {
+   "id": "11211",
+   "name": "Brick 1 x 2 with Studs on 1 Side",
+   "kind": "snot",
+   "L": 2,
+   "W": 1,
+   "h": 3,
+   "studs": true,
+   "shape": "snot",
+   "top": "all",
+   "bottom": "all",
+   "side": [
+    [
+     0,
+     0
+    ],
+    [
+     1,
+     0
+    ]
+   ],
+   "side_mm": 5.6,
+   "ldraw": "11211.dat",
+   "ldraw_origin": "top"
+  },
+  {
+   "id": "30414",
+   "name": "Brick 1 x 4 with Studs on Side",
+   "kind": "snot",
+   "L": 4,
+   "W": 1,
+   "h": 3,
+   "studs": true,
+   "shape": "snot",
+   "top": "all",
+   "bottom": "all",
+   "side": [
+    [
+     0,
+     0
+    ],
+    [
+     1,
+     0
+    ],
+    [
+     2,
+     0
+    ],
+    [
+     3,
+     0
+    ]
+   ],
+   "side_mm": 5.6,
+   "ldraw": "30414.dat",
    "ldraw_origin": "top"
   }
  ],

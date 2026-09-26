@@ -34,10 +34,28 @@ Official-geometry renders (flat shading, painter's algorithm; transparency not d
 
 ## LeoCAD
 
-Not done yet: the Homebrew cask for LeoCAD was disabled on 2026-09-01 because the app fails
-the macOS Gatekeeper check, and installing it by hand would mean overriding Gatekeeper on the
-maintainer's machine. To finish the manual check: open `examples/lighthouse/out/harbour-lighthouse.ldr`
-in LeoCAD (or Studio / Mecabricks), compare with the renders above, and add a screenshot here.
+Checked 2026-09-25 with LeoCAD 26.09 (official macOS release) and the LDraw library 26.08,
+rendering the last step of each exported file from the command line:
+
+```bash
+LeoCAD -l complete.zip -i out.png -w 900 -h 1100 -f LAST -t LAST --viewpoint home model.ldr
+```
+
+Both open without missing parts. Slopes face outward on all four sides of the cone, the
+inverted slopes form the chamfer under the flare, rounds sit centred, and the lighthouse's
+rock base, lantern mullions and roof match the Snapwright renders.
+
+![lighthouse in LeoCAD](ldraw-check/lighthouse-leocad.png) ![shaped model in LeoCAD](ldraw-check/shaped-leocad.png)
+
+## Sideways panels (M3)
+
+With panels the export is a multi-part LDraw file: each panel is a submodel with its own
+steps, built flat, and the model places it at its attach step. `examples/robot` (441 parts,
+two panels on 54 side studs) matches the official geometry part for part, and LeoCAD 26.09
+shows both panels upright on the front (the file keeps the .ldr name; LeoCAD reads the
+submodels from it):
+
+![robot in LeoCAD](ldraw-check/robot-leocad.png)
 
 ## Orientation facts used by the exporter
 
@@ -45,3 +63,5 @@ From the official part files: box parts have their origin at the top centre with
 axis along X. Brick-height slopes (3040b, 3039, 4286, 3298) and inverted slopes (3665a, 3660)
 have their origin at the top centre of the studded back row and run towards -Z. The 2/3-height
 30 degree slopes (54200, 85984) have their origin at the bottom centre. Rounds are centred.
+Side-stud bricks (87087, 11211, 30414) have their origin at the top centre and their side
+studs 10 LDU below the top on the -Z face, pointing -Z.

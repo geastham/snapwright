@@ -78,7 +78,7 @@ class Packer:
                  finish: str = "tiles", use_bricks: bool = True, max_len: int = 8,
                  interior: int | None = None, no_brick: np.ndarray | None = None,
                  no_tile: np.ndarray | None = None, priority: np.ndarray | None = None,
-                 shapes: bool = True):
+                 shapes: bool = True, anchors: list | None = None):
         self.V = V
         self.no_tile = no_tile if no_tile is not None else np.zeros(V.shape, dtype=bool)
         self.no_brick = no_brick if no_brick is not None else np.zeros(V.shape, dtype=bool)
@@ -87,6 +87,7 @@ class Packer:
         self.priority = priority if priority is not None else np.zeros(V.shape, dtype=np.int32)
         self.rescued = 0
         self.shapes = shapes
+        self.anchors = anchors or []
         self.palette = palette
         self.cat = catalog
         self.rng = random.Random(seed)
@@ -122,6 +123,8 @@ class Packer:
     def run(self) -> list[dict]:
         NX, NZ, NY = self.shape
         filled = self.V > 0
+        if self.anchors:
+            self._place_anchors()
         if self.shapes:
             self._shape_surface()
         for c in range((NY + 2) // 3):
@@ -174,6 +177,43 @@ class Packer:
                 p["id"] = i
                 self.owner[p["x"]:p["x"] + p["dx"], p["z"]:p["z"] + p["dz"], p["y"]:p["y"] + p["h"]] = i
         return self.parts
+
+    def _place_anchors(self):
+        """Side-stud bricks right behind each sideways panel, on the rows that line up with the
+        panel's studs (see snot.py). Longest bricks first along each row; a column is skipped
+        if the model isn't solid there or the colour can't match."""
+        snots = sorted((t for t in self.cat.parts if t.shape == "snot"), key=lambda t: -t.L)
+        for req in self.anchors:
+            y = req["plate"]
+            cols = [(i, x, z) for i, x, z in req["cols"]
+                    if 0 <= x < self.shape[0] and 0 <= z < self.shape[1] and y + 3 <= self.shape[2]
+                    and (self.V[x, z, y:y + 3] > 0).all() and (self.owner[x, z, y:y + 3] < 0).all()]
+            k = 0
+            while k < len(cols):
+                for t in snots:
+                    run = cols[k:k + t.L]
+                    if len(run) < t.L or any(run[m][0] != run[0][0] + m for m in range(t.L)):
+                        continue
+                    cells = [(x, z) for _, x, z in run]
+                    vals = {int(self.req[x, z, yy]) for x, z in cells for yy in range(y, y + 3)} - {0}
+                    if len(vals) > 1:
+                        continue
+                    xs, zs = [c[0] for c in cells], [c[1] for c in cells]
+                    x0, z0 = min(xs), min(zs)
+                    dx, dz = max(xs) - x0 + 1, max(zs) - z0 + 1
+                    pid = len(self.parts)
+                    self.owner[x0:x0 + dx, z0:z0 + dz, y:y + 3] = pid
+                    self.stud_top[x0:x0 + dx, z0:z0 + dz, y + 2] = True
+                    color = self.palette[(vals.pop() if vals else self.interior) - 1]
+                    self.parts.append({"id": pid, "part": t.id, "name": t.name, "kind": t.kind,
+                                       "color": color, "x": x0, "z": z0, "y": y, "dx": dx, "dz": dz,
+                                       "h": 3, "rot": req["face"], "studs": True, "shape": "snot",
+                                       "dir": req["face"], "side_cells": [[int(a), int(b)] for a, b in cells],
+                                       "anchor": req["panel"], "row": req["row"]})
+                    k += t.L
+                    break
+                else:
+                    k += 1
 
     def _shape_surface(self):
         """Slopes, inverted slopes and round parts claim their cells before normal packing
@@ -627,7 +667,7 @@ def change_counts(V, W, palette) -> dict:
 
 
 def brickify(V, palette, catalog, seeds=8, finish="tiles", use_bricks=True, max_len=8,
-             repair_rounds=6, log=print, shapes=True):
+             repair_rounds=6, log=print, shapes=True, anchors=None):
     """Try several seeds (each with a repair loop), validate, keep the best.
     Returns (parts, stats, V_final) where V_final includes any repair recolouring."""
     from .validate import validate
@@ -641,7 +681,7 @@ def brickify(V, palette, catalog, seeds=8, finish="tiles", use_bricks=True, max_
         for rnd in range(repair_rounds + 1):
             parts = Packer(W, palette, catalog, seed=s, finish=finish, use_bricks=use_bricks,
                            max_len=max_len, no_brick=no_brick, no_tile=no_tile,
-                           priority=priority, shapes=shapes).run()
+                           priority=priority, shapes=shapes, anchors=anchors).run()
             stats = validate(parts, W.shape, catalog, with_necks=False)
             if (stats["floating"] == 0 and stats["structures"] == 1) or rnd == repair_rounds:
                 break

@@ -113,6 +113,12 @@ for (const [k, g] of groups) {
   g.idx.forEach((i, n) => g.mesh.setColorAt(n, new THREE.Color(M.colors[parts[i].color].hex)));
   scene.add(g.mesh);
 }
+// sideways panels: built flat, then slid onto the side studs at their attach step
+const panelParts = [];
+for (const pn of (M.panels || [])) for (const b of pn.parts) panelParts.push({ pn, b });
+const panelMesh = new THREE.InstancedMesh(boxGeo, mat, Math.max(1, panelParts.length));
+panelParts.forEach(({ b }, k) => panelMesh.setColorAt(k, new THREE.Color(M.colors[b.color].hex)));
+panelMesh.count = 0; scene.add(panelMesh);
 const studGeo = new THREE.CylinderGeometry(2.4, 2.4, 1.8, 16);
 const studList = [];
 for (const i of order) { const p = parts[i];
@@ -145,6 +151,16 @@ function place(t) {                 // t = build time in steps (fractional)
     }
     g.mesh.count = n; g.mesh.instanceMatrix.needsUpdate = true;
   }
+  let np = 0;
+  q.identity();
+  for (const { pn, b } of panelParts) {
+    const local = t - (pn.step - 1); if (local <= 0) continue;
+    const slide = Math.max(0, 1 - local * 1.2) ** 2 * 80;       // slides in along the face normal
+    v.set((b.lo[0] + b.hi[0]) / 2 + pn.n[0] * slide, (b.lo[1] + b.hi[1]) / 2, (b.lo[2] + b.hi[2]) / 2 + pn.n[2] * slide);
+    sc.set(b.hi[0] - b.lo[0] - gap, b.hi[1] - b.lo[1] - gap, b.hi[2] - b.lo[2] - gap);
+    panelMesh.setMatrixAt(np++, m4.compose(v, q, sc));
+  }
+  panelMesh.count = np; panelMesh.instanceMatrix.needsUpdate = true;
   let ns = 0;
   q.identity();
   for (const [i, a, b] of studList) { const p = parts[i];

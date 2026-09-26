@@ -181,6 +181,18 @@ def find_necks(parts, edges, shape, max_studs=3, min_parts=6):
     return sorted(found.values(), key=lambda d: (d["strength"], -d["parts_above"], d["plate"]))
 
 
+def com_margin_with(parts, extra):
+    """Centre-of-mass margin (mm) over the grounded footprint of `parts`, with extra masses
+    [(grams, x_studs, z_studs)] such as sideways panels."""
+    mass = [(part_mass_g(p), p["x"] + p["dx"] / 2, p["z"] + p["dz"] / 2) for p in parts] + list(extra)
+    M = sum(m for m, _, _ in mass) or 1.0
+    cx = sum(m * x for m, x, _ in mass) / M
+    cz = sum(m * z for m, _, z in mass) / M
+    ground = [(p["x"] + a, p["z"] + b) for p in parts if p["y"] == 0 for a in (0, p["dx"]) for b in (0, p["dz"])]
+    hull = _hull(ground)
+    return round(_margin((cx, cz), hull) * STUD_MM, 1) if hull else -1
+
+
 def validate(parts, shape, catalog=None, with_necks=True) -> dict:
     n = len(parts)
     occ, collisions = occupancy(parts, shape)
@@ -233,7 +245,7 @@ def validate(parts, shape, catalog=None, with_necks=True) -> dict:
     shaped_cells = 0
     for p in parts:
         kinds[p["kind"]] = kinds.get(p["kind"], 0) + 1
-        if p.get("shape", "box") != "box":
+        if p.get("shape", "box") in ("slope", "slope_inv", "round"):
             shaped[p["shape"]] = shaped.get(p["shape"], 0) + 1
             shaped_cells += p["dx"] * p["dz"] * p["h"]
 
@@ -313,6 +325,13 @@ def report_lines(stats) -> list[tuple[str, str]]:
                  "round": ("round part", "round parts")}
         bits = [f"{n} {names[k][0] if n == 1 else names[k][1]}" for k, n in sorted(sh.items()) if k in names]
         out.append(("note", "Surface shaping: " + ", ".join(bits) + " smooth the voxel steps"))
+    for pn in st.get("panels", []):
+        out.append(("check", f"Panel {pn['name']}: {pn['parts']} parts built flat, clipped onto "
+                             f"{s_(pn['studs'], 'side stud')}"))
+        if pn.get("offset_mm"):
+            where = "inside" if pn["offset_mm"] < 0 else "proud of"
+            out.append(("note", f"Panel {pn['name']}'s face sits {abs(pn['offset_mm'])} mm {where} "
+                                f"the surrounding surface"))
     necks = st.get("necks") or []
     for nk in necks[:3]:
         g = f" ({nk['mass_g']:.0f} g)" if nk.get("mass_g") is not None else ""

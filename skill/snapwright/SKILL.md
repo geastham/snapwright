@@ -82,7 +82,26 @@ Builds are deterministic: the same design file and seeds give the same model. Ad
 Share the PDF and the viewer first. Give the headline numbers (parts, height, steps, lots),
 anything the user should know before buying parts, and one concrete next improvement.
 
-## 5. Photos to mosaics
+## 5. Sideways panels (faces, signs, chest plates)
+
+When a flat face of the model carries a picture that needs finer vertical detail or a smooth
+upright finish (a face, a sign, a screen), build it as a sideways panel: it is built flat and
+clipped onto side-stud bricks, so its pixels are a stud tall instead of a plate.
+
+```python
+face = model.panel("Face", face="+z", at=4, width=8, height=6)   # carves its space
+face.box(0, 0, 0, 8, 6, 1, "black")      # panel coords: x across, z rows DOWN, y layers out
+face.box(0, 0, 1, 8, 6, 2, "white")      # outer layer (tiles)
+face.box(1, 1, 1, 3, 3, 2, "black")      # left eye
+```
+
+The model must be solid right behind the panel (anchor rows every 2 studs); `face.mosaic(img)`
+reads upright from the front. Use even heights. The build checks each panel on its own (one
+piece, every part held, at least 2 side studs), shows it in a boxed "sub-build" in the book
+with an attach step, and animates the attach in the viewer. Details in
+`references/design-dsl.md`.
+
+## 6. Photos to mosaics
 
 For "make a mosaic of this photo": `model = Model(48, 48, 3)` then
 `model.mosaic("photo.jpg", mode="flat")`: two staggered base plate layers hold it together

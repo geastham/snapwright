@@ -21,12 +21,14 @@ from .validate import connection_graph, occupancy, report_lines, validate, verdi
 DISCLAIMER = ("Unofficial fan design. Not affiliated with, sponsored or endorsed by the LEGO Group "
               "or any other brick manufacturer.")
 ASSETS = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "assets"))
-SCHEMA = "snapwright.model/0.3"
+SCHEMA = "snapwright.model/0.4"
 
 
 def load_model(path_or_dict) -> dict:
     """Read model.json, upgrading older schemas in memory so every output can be regenerated.
 
+    0.3 -> 0.4: `subassemblies` (sideways panels with their own parts; their steps have
+    `sub` and kinds subassembly / attach); older files have none.
     0.2 -> 0.3: parts may be shaped (shape, dir, top_cells, bottom_cells: per-cell studs and
     sockets); 0.2 files have only box parts, so nothing changes but the schema tag.
     0.1 -> 0.2: steps gain `level`; stats gain added_cells, studded_cells, floating_voxels,
@@ -36,12 +38,13 @@ def load_model(path_or_dict) -> dict:
     schema = m.get("schema", "")
     if schema == SCHEMA:
         return m
-    if schema == "snapwright.model/0.2":
+    if schema in ("snapwright.model/0.2", "snapwright.model/0.3"):
         m["schema"] = SCHEMA
+        m.setdefault("subassemblies", [])
         m.setdefault("meta", {}).setdefault("upgraded_from", schema)
         return m
     if schema != "snapwright.model/0.1":
-        raise SystemExit(f"unknown model schema {schema!r}; this snapwright reads 0.1 to 0.3")
+        raise SystemExit(f"unknown model schema {schema!r}; this snapwright reads 0.1 to 0.4")
     parts = m["parts"]
     for st in m["steps"]:
         st.setdefault("level", min(parts[i]["y"] for i in st["parts"]))
@@ -52,6 +55,7 @@ def load_model(path_or_dict) -> dict:
     for nk in stats.get("necks", []):
         nk.setdefault("mass_g", None)
     m["schema"] = SCHEMA
+    m.setdefault("subassemblies", [])
     m.setdefault("meta", {}).setdefault("upgraded_from", schema)
     return m
 
@@ -165,15 +169,19 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
     _warn_islands(m, log)
 
     log("[2/6] brickify")
+    from .snot import anchor_requests
+    panels = list(getattr(m, "panels", []))
+    anchors = [r for pn in panels for r in anchor_requests(pn.spec)] or None
     parts, stats, V_final = brickify(m.V, m.palette, cat, seeds=seeds, finish=finish, log=log,
-                                     shapes=shapes)
+                                     shapes=shapes, anchors=anchors)
     if base == "auto" and stats["com_margin_mm"] < 3 and stats["floating"] == 0 \
             and stats["structures"] == 1:
         n = m.base(layers=2, margin=1)
         log(f"  auto-repair: centre of mass only {stats['com_margin_mm']} mm inside the footprint; "
             f"adding a 2-plate base ({n} cells) and rebuilding")
+        anchors = [r for pn in panels for r in anchor_requests(pn.spec)] or None
         parts, stats, V_final = brickify(m.V, m.palette, cat, seeds=seeds, finish=finish, log=log,
-                                         shapes=shapes)
+                                         shapes=shapes, anchors=anchors)
         stats["added_cells"] += n
         stats["base_cells"] = n
     tm.lap("brickify")
@@ -207,10 +215,22 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
     if unanchored:
         fails.append(f"{unanchored} parts cannot be attached in any order")
         ok = False
+    subs = []
+    if panels:
+        subs, steps, pfails = _solve_panels(panels, parts, steps, stats, cat, seeds, finish, mps, log)
+        for f in pfails:
+            log(f"  FAIL: {f}")
+        fails += pfails
+        ok = ok and not pfails
 
     tm.lap("steps")
     stats.pop("per_part_studs", None)
-    used = sorted({p["color"] for p in parts})
+    everything = parts + [q for sb in subs for q in sb["parts"]]
+    used = sorted({p["color"] for p in everything})
+    if subs:
+        stats["main_parts"] = len(parts)
+        stats["parts"] = len(everything)
+        stats["unique_lots"] = len({(p["part"], p["color"]) for p in everything})
     model = {
         "schema": SCHEMA,
         "meta": {"title": m.title, "subtitle": m.subtitle, "author": m.author,
@@ -220,10 +240,11 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
                  "shapes": shapes, "base": base},
         "grid": {"shape": list(m.V.shape), "stud_mm": 8.0, "plate_mm": 3.2},
         "colors": {k: cat.colors[k] for k in used},
-        "catalog_names": {p["part"]: p["name"] for p in parts},
+        "catalog_names": {p["part"]: p["name"] for p in everything},
         "parts": parts,
+        "subassemblies": subs,
         "steps": steps,
-        "bom": [list(r) for r in exporters.bom(parts)],
+        "bom": [list(r) for r in exporters.bom(everything)],
         "stats": {**stats, "steps": len(steps), "passed": ok, "failures": fails},
     }
     return model, V_final
@@ -232,13 +253,128 @@ def solve(m: Model, cat: Catalog, seeds=8, finish="tiles", audience="adult", max
 def _viewer_part(p, cat):
     """The fields the viewer needs; shaped parts add shape, dir, catalog L / lip, studs."""
     q = {k: p[k] for k in ("x", "y", "z", "dx", "dz", "h", "color", "studs", "step")}
-    if p.get("shape", "box") != "box":
+    if p.get("shape", "box") in ("slope", "slope_inv", "round"):     # side-stud bricks draw as boxes
         t = cat.by_id.get(p["part"]) if cat else None
         q.update(shape=p["shape"], dir=p.get("dir", 0), L=t.L if t else max(p["dx"], p["dz"]),
                  lip=t.lip if t else 0.5)
         if "top_cells" in p:
             q["tc"] = p["top_cells"]
     return q
+
+
+FACE_VIEWS = {0: (0, 3), 1: (0, 1), 2: (1, 2), 3: (2, 3)}   # quarter views that show each face
+
+
+def _solve_panels(panels, parts, steps, stats, cat, seeds, finish, mps, log):
+    """Pack and check each sideways panel on its own, then weave its steps into the book:
+    the panel's own steps and an attach step right after its last anchor brick goes in.
+    Returns (subassemblies, steps, failures)."""
+    from .snot import anchored_cells, panel_hold, part_world_box
+    from .validate import part_mass_g
+    subs, fails = [], []
+    step_of = {pid: st["n"] for st in steps for pid in st["parts"]}
+    extra_mass = []
+    inserts = {}                                    # main step index -> [panel steps]
+    for pn in panels:
+        sp = pn.spec
+        log(f"  panel {sp.name}: {pn.voxel_count():,} voxels, {sp.W} x {sp.H} studs, {sp.D} plates deep")
+        pparts, pstats, _ = brickify(pn.V, pn.palette, cat, seeds=max(2, seeds // 2), finish=finish,
+                                     log=lambda *a: None, shapes=False)
+        pocc, _ = occupancy(pparts, pn.V.shape)
+        pedges = connection_graph(pparts, pocc)
+        anchored = anchored_cells(sp, parts)
+        held, studs = panel_hold(sp, pparts, pedges, anchored)
+        pf = []
+        if studs < 2:
+            pf.append(f"panel {sp.name}: held by {studs} side stud(s); it needs at least 2 (the model "
+                      f"must be solid right behind the panel on its anchor rows)")
+        if len(held) < len(pparts):
+            pf.append(f"panel {sp.name}: {len(pparts) - len(held)} parts not held through the side studs")
+        for f in verdict({**pstats, "com_margin_mm": 99})[1]:
+            pf.append(f"panel {sp.name}: {f}")
+        # nothing of the main model may be where the panel goes
+        x0, x1, z0, z1, y0, y1 = sp.main_region()
+        hit = [p["id"] for p in parts if p["x"] < x1 and x0 < p["x"] + p["dx"] and p["z"] < z1
+               and z0 < p["z"] + p["dz"] and p["y"] < y1 and y0 < p["y"] + p["h"]]
+        if hit:
+            pf.append(f"panel {sp.name}: {len(hit)} model parts are in the panel's space")
+        fails += pf
+        for q in pparts:
+            lo, hi = part_world_box(sp, q)
+            c = (lo + hi) / 2
+            extra_mass.append((part_mass_g(q), c[0] / 8.0, c[2] / 8.0))
+        psteps = plan_steps(pparts, pedges, pn.V.shape, max_per_step=mps)
+        for st in psteps:
+            st["kind"], st["sub"] = "subassembly", sp.name
+        ends = [step_of[p["id"]] for p in parts if p.get("anchor") == sp.name]
+        after = max(ends) if ends else len(steps)
+        prev_view = steps[after - 1]["view"] if steps else 0
+        views = FACE_VIEWS[sp.face]
+        attach = {"parts": [], "kind": "attach", "sub": sp.name, "level": steps[after - 1]["level"] if steps else 0,
+                  "view": prev_view if prev_view in views else views[0]}
+        inserts.setdefault(after, []).extend(psteps + [attach])
+        subs.append({"name": sp.name, "spec": sp.to_json(), "grid": list(pn.V.shape),
+                     "parts": pparts, "anchor_studs": studs, "held": len(held),
+                     "face_offset_mm": sp.face_offset_mm(),
+                     "stats": {k: pstats[k] for k in ("parts", "connections", "structures", "floating",
+                                                      "collisions", "mass_g")},
+                     "failures": pf})
+        log(f"  panel {sp.name}: {len(pparts)} parts, attached by {studs} side studs"
+            + (f"; FAIL" if pf else ""))
+    # weave the panel steps in and renumber everything
+    merged = []
+    for k, st in enumerate(steps, start=1):
+        merged.append(st)
+        merged.extend(inserts.get(k, []))
+    merged.extend(inserts.get(len(steps) + 1, []))
+    by_sub = {sb["name"]: sb for sb in subs}
+    for n, st in enumerate(merged, start=1):
+        st["n"] = n
+        pool = by_sub[st["sub"]]["parts"] if st.get("sub") else parts
+        for pid in st["parts"]:
+            pool[pid]["step"] = n
+    # a panel slides on along its face normal: nothing built before its attach step may be in the way
+    grid = (max((p["x"] + p["dx"] for p in parts), default=0) + 64,
+            max((p["z"] + p["dz"] for p in parts), default=0) + 64, 0)
+    for pn in panels:
+        sp = pn.spec
+        n_attach = next(st["n"] for st in merged if st.get("kind") == "attach" and st["sub"] == sp.name)
+        x0, x1, z0, z1, y0, y1 = sp.slide_path(grid)
+        block = [p for p in parts if p.get("step", 0) < n_attach and p["x"] < x1 and x0 < p["x"] + p["dx"]
+                 and p["z"] < z1 and z0 < p["z"] + p["dz"] and p["y"] < y1 and y0 < p["y"] + p["h"]]
+        if block:
+            f = (f"panel {sp.name}: {len(block)} parts built before it is attached are in front of it "
+                 f"(it can't slide onto its side studs)")
+            fails.append(f)
+            next(sb for sb in subs if sb["name"] == sp.name)["failures"].append(f)
+    stats["panels"] = [{"name": sb["name"], "parts": len(sb["parts"]), "studs": sb["anchor_studs"],
+                        "offset_mm": sb["face_offset_mm"]} for sb in subs]
+    if extra_mass:
+        from .validate import com_margin_with
+        stats["com_margin_mm"] = com_margin_with(parts, extra_mass)
+        if stats["com_margin_mm"] < 3:
+            fails.append(f"centre of mass only {stats['com_margin_mm']} mm inside the footprint "
+                         f"with the panels on (tips over)")
+    return subs, merged, fails
+
+
+def _viewer_panels(model):
+    """Sideways panels for the viewer: world boxes (mm) per part, the face normal (the way the
+    panel slides on) and the step it is attached in."""
+    from .snot import PanelSpec, part_world_box
+    attach = {st["sub"]: st["n"] for st in model["steps"] if st.get("kind") == "attach"}
+    out = []
+    for sb in model.get("subassemblies", []):
+        sp = PanelSpec.from_json(sb["spec"])
+        _, n, _ = sp.frame()
+        boxes = []
+        for q in sb["parts"]:
+            lo, hi = part_world_box(sp, q)
+            boxes.append({"lo": [round(float(v), 2) for v in lo], "hi": [round(float(v), 2) for v in hi],
+                          "color": q["color"]})
+        out.append({"name": sb["name"], "n": [float(n[0]), 0.0, float(n[2])],
+                    "step": attach.get(sb["name"], len(model["steps"])), "parts": boxes})
+    return out
 
 
 def write_viewer(model, path, catalog=None):
@@ -249,6 +385,8 @@ def write_viewer(model, path, catalog=None):
     slim["parts"] = [_viewer_part(p, cat) for p in model["parts"]]
     slim["steps"] = [{"n": s["n"]} for s in model["steps"]]
     slim["report"] = [{"kind": k, "text": t} for k, t in report_lines(model["stats"])]
+    slim["panels"] = _viewer_panels(model)
+    slim.pop("subassemblies", None)
     data = json.dumps(slim, separators=(",", ":")).replace("</", "<\\/")
     html = html.replace("__MODEL_JSON__", data).replace("__TITLE__", model["meta"]["title"])
     _write(os.path.dirname(path), os.path.basename(path), html)
