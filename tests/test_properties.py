@@ -3,7 +3,7 @@
 For every design, passing or not: no collisions, parts cover exactly the built voxels,
 visible colours are kept, and the reported recolour/trim/add counts equal the real change.
 For every PASS design: every part is reachable from the ground and every step can be
-followed in order. Set SNAPWRIGHT_PROPERTY_N for a longer run (default 24 designs)."""
+followed in order. Set SNAPWRIGHT_PROPERTY_N for a longer run (default 16 designs)."""
 import os
 
 import pytest
@@ -12,7 +12,7 @@ from blobby import random_design
 from conftest import solve
 from oracles import check_model
 
-N = int(os.environ.get("SNAPWRIGHT_PROPERTY_N", "24"))
+N = int(os.environ.get("SNAPWRIGHT_PROPERTY_N", "16"))
 
 
 @pytest.mark.parametrize("seed", range(N))

@@ -4,7 +4,7 @@ SW = python skill/snapwright/scripts/sw.py
 setup:
 	pip install -r requirements.txt
 test:
-	pytest -q tests
+	pytest -q -n auto tests
 preview:
 	$(SW) preview examples/lighthouse/design.py --out examples/lighthouse/out/preview
 example:

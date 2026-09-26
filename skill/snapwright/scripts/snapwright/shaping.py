@@ -52,6 +52,18 @@ STUD_MM, PLATE_MM = 8.0, 3.2
 TILT = 0.35          # a sloped surface: normal at least ~20 degrees from both flat and vertical
 
 
+_CACHE: dict = {}
+
+
+def _key(*arrays):
+    import hashlib
+    h = hashlib.blake2b(digest_size=16)
+    for a in arrays:
+        h.update(str(a.shape).encode())
+        h.update(np.ascontiguousarray(a).tobytes())
+    return h.hexdigest()
+
+
 def surface_normals(F, sigma_mm=12.0):
     """Outward surface normals of the voxel shape, smoothed over ~1.5 studs in real
     millimetres (so a tall wall reads as vertical even where its outline stair-steps).
@@ -72,13 +84,22 @@ def find_shapes(V, req, catalog, finish="tiles", blocked=None, visible=None):
     NX, NZ, NY = V.shape
     F = V > 0
     visible = np.ones(V.shape, dtype=bool) if visible is None else visible
-    nxs, nzs, nys = surface_normals(F)
+    blocked = np.zeros(V.shape, dtype=bool) if blocked is None else blocked
+    # deterministic: every seed's first round (and repeats) reuse the same answer
+    key = ("shapes", _key(V, req, blocked, visible), finish, id(catalog))
+    if key in _CACHE:
+        return [dict(s) for s in _CACHE[key]]
+    if len(_CACHE) > 64:
+        _CACHE.clear()
+    nkey = ("normals", _key(F))
+    if nkey not in _CACHE:
+        _CACHE[nkey] = surface_normals(F)
+    nxs, nzs, nys = _CACHE[nkey]
 
     def tilted(x, z, y, ux, uz, upward=True):
         """The smoothed surface at this cell leans the way a slope facing (ux, uz) would."""
         ny = nys[x, z, y] if upward else -nys[x, z, y]
         return ny >= TILT and nxs[x, z, y] * ux + nzs[x, z, y] * uz >= TILT
-    blocked = np.zeros(V.shape, dtype=bool) if blocked is None else blocked
     taken = np.zeros(V.shape, dtype=bool)
     up = np.zeros_like(F)
     up[:, :, :-1] = F[:, :, 1:]                       # cell above is filled
@@ -259,4 +280,5 @@ def find_shapes(V, req, catalog, finish="tiles", blocked=None, visible=None):
                     if not (straight(x, z, y, ax, az, bx, bz) or straight(x, z, y, bx, bz, ax, az)):
                         try_place(corner_t, 0, x, z, y)
                     break
+    _CACHE[key] = [dict(o) for o in out]
     return out
