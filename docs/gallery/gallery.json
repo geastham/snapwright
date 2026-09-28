@@ -6,7 +6,20 @@
   "parts": 3115,
   "height_cm": 43.2,
   "steps": 119,
-  "passed": true
+  "passed": true,
+  "blurb": "A lakefront diorama, designed from two photos.",
+  "video": true
+ },
+ {
+  "example": "creations/memorial-church",
+  "slug": "memorial-church",
+  "title": "Memorial Church",
+  "parts": 3443,
+  "height_cm": 27.8,
+  "steps": 82,
+  "passed": true,
+  "blurb": "Stanford's Memorial Church from the Main Quad. The gable mosaic is built from plate edges: every pixel is a stud wide and a plate tall.",
+  "video": true
  },
  {
   "example": "keep",
@@ -15,7 +28,9 @@
   "parts": 5210,
   "height_cm": 45.1,
   "steps": 55,
-  "passed": true
+  "passed": true,
+  "blurb": "Hollow walls with bracing inside.",
+  "video": false
  },
  {
   "example": "lighthouse",
@@ -24,7 +39,9 @@
   "parts": 1808,
   "height_cm": 32.6,
   "steps": 70,
-  "passed": true
+  "passed": true,
+  "blurb": "Slopes and rounds smooth the tapers.",
+  "video": false
  },
  {
   "example": "robot",
@@ -33,7 +50,9 @@
   "parts": 492,
   "height_cm": 25.0,
   "steps": 58,
-  "passed": true
+  "passed": true,
+  "blurb": "Face and chest built sideways onto side studs.",
+  "video": false
  },
  {
   "example": "rocket",
@@ -42,6 +61,8 @@
   "parts": 485,
   "height_cm": 24.0,
   "steps": 49,
-  "passed": true
+  "passed": true,
+  "blurb": "Straight from an STL file.",
+  "video": false
  }
 ]

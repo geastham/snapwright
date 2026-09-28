@@ -59,14 +59,16 @@ Every build drops these into an `out/` folder:
 
 ## Gallery
 
-Every one of these passes the checks. Click a picture to open its 3D viewer.
+Every one of these passes the checks. Click a picture to open its 3D viewer, or browse the
+**[creations library](https://geastham.github.io/snapwright/gallery/)** to download each one's
+instruction book, BrickLink parts list and 3D viewer for free.
 
 | | | |
 |:-:|:-:|:-:|
 | [<img src="docs/gallery/lakeside-sail-tower.png" height="230" alt="Lakeside Sail Tower">](https://geastham.github.io/snapwright/gallery/lakeside-sail-tower.html) | [<img src="docs/gallery/harbour-lighthouse.png" height="230" alt="Harbour Lighthouse">](https://geastham.github.io/snapwright/gallery/harbour-lighthouse.html) | [<img src="docs/gallery/signal-robot.png" height="230" alt="Signal Robot">](https://geastham.github.io/snapwright/gallery/signal-robot.html) |
 | **Lakeside Sail Tower**<br>3,115 parts · 43 cm<br>a lakefront diorama, from two photos | **Harbour Lighthouse**<br>1,808 parts · 33 cm<br>slopes and rounds on the tapers | **Signal Robot**<br>492 parts · 25 cm<br>face and chest built sideways |
-| [<img src="docs/gallery/little-rocket.png" height="230" alt="Little Rocket">](https://geastham.github.io/snapwright/gallery/little-rocket.html) | [<img src="docs/gallery/stone-keep.png" height="230" alt="Stone Keep">](https://geastham.github.io/snapwright/gallery/stone-keep.html) | |
-| **Little Rocket**<br>485 parts · 24 cm<br>straight from an STL file | **Stone Keep**<br>5,210 parts · 45 cm<br>hollow walls with bracing | |
+| [<img src="docs/gallery/little-rocket.png" height="230" alt="Little Rocket">](https://geastham.github.io/snapwright/gallery/little-rocket.html) | [<img src="docs/gallery/stone-keep.png" height="230" alt="Stone Keep">](https://geastham.github.io/snapwright/gallery/stone-keep.html) | [<img src="docs/gallery/memorial-church.png" height="230" alt="Memorial Church">](https://geastham.github.io/snapwright/gallery/memorial-church.html) |
+| **Little Rocket**<br>485 parts · 24 cm<br>straight from an STL file | **Stone Keep**<br>5,210 parts · 45 cm<br>hollow walls with bracing | **Memorial Church**<br>3,443 parts · 28 cm<br>a mosaic gable built from plate edges |
 
 ## Make your own creation
 
