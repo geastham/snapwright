@@ -228,7 +228,8 @@ class Packer:
         (see shaping.py). Cells the repair loop is working on are left alone, and so are
         shapes that aren't made in the colour needed (normal packing covers those cells)."""
         from .shaping import find_shapes
-        blocked = self.no_brick | (self.priority > 0)
+        # ... and cells already placed (side-stud anchors behind a panel on a sloping gable)
+        blocked = self.no_brick | (self.priority > 0) | (self.owner >= 0)
         for s in find_shapes(self.V, self.req, self.cat, self.finish, blocked, visible=self.vis):
             t = s["t"]
             if not self._ok(t, s["color"] or 0):

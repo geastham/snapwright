@@ -200,3 +200,18 @@ face.box(0, 0, 0, 4, 4, 2, "black")
     assert spec.plane == 12, spec.plane
     model, _ = solve(m, seeds=1)
     assert model["stats"]["passed"], model["stats"]["failures"]
+
+
+def test_panel_on_a_gable_leaves_the_rake_slopes_off_its_anchors():
+    """Shaping smooths a gable's sloping edges; it must not put slopes where the panel's
+    side-stud anchors already are (they overlapped before)."""
+    m = Model(20, 10, 40, title="Gable")
+    m.box(1, 1, 0, 19, 8, 20, "tan")
+    m.where(lambda X, Y, Z: (X >= 1) & (X < 19) & (Z >= 1) & (Z < 8) & (Y >= 20)
+            & (Y < 20 + 16 * np.clip(1 - np.abs(X - 10) / 9, 0, 1)), "tan")
+    pn = m.panel("Gable", face="+z", at=2, plane=7, top=34, width=16, height=12, depth=2)
+    pn.box(0, 0, 0, 16, 12, 2, "red")
+    pn.carve(lambda X, Y, Z: np.abs(X - 8) > 1 + 0.5 * Z)
+    model, built = solve(m, seeds=1)
+    assert model["stats"]["collisions"] == 0
+    assert model["stats"]["shaped"], "the rake should still get slopes"
