@@ -11,7 +11,7 @@ drum towers just visible behind.
 
 ## 2. Rights
 A real place (a building), fine to model. Name it "Memorial Church"; no university logos or
-marks in the book or files. Reference: a generated front elevation (reference/view_front.jpg); the photos used to make it are not included.
+marks in the book or files. References (a generated front elevation and the photos it was made from) are not in the repo; mosaic_keys.json holds what the design needs.
 
 ## 3. Size and budget
 The Quad frontage on a small plaza: about 43 x 26 cm and 27 cm to the top of the cross,
