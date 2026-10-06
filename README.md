@@ -98,6 +98,13 @@ finds the shops that have everything. Every part is listed only in colours it's 
 made in. There's also a Rebrickable list, and a link per part in the parts CSV and the viewer.
 **[Step by step →](docs/ordering.md)**
 
+## Build it with your hands
+
+No bricks yet? [**Handbuild**](https://snapwright.eastham.ai) plays any Snapwright model in the
+browser: hold your hands up to the webcam, pinch a part from the tray and click it into place,
+step by step from the same instruction book. Ask Claude to **"open it in Handbuild"** after a
+build and it gives you a link, or open the site and drop in your `out/model.json`.
+
 ## Install (30 seconds)
 
 **Claude Code, Cursor, Codex and other agents** (via the open [skills](https://skills.sh) CLI):
