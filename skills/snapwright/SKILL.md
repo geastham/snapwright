@@ -129,6 +129,31 @@ Builds are deterministic: the same design file and seeds give the same model. Ad
 Share the PDF and the viewer first. Give the headline numbers (parts, height, steps, lots),
 anything the user should know before buying parts, and one concrete next improvement.
 
+### Build it by hand in the browser (Handbuild)
+
+[Handbuild](https://snapwright.eastham.ai) is a web player for Snapwright models: the user holds
+their hands up to a webcam and pinches each part into place, step by step from the book (mouse
+and touch work too). After a build PASSes, offer it in one line, and when the user says yes or
+asks to "open it in Handbuild", "play it" or "build it with my hands":
+
+- **With the `gh` CLI signed in** (`gh auth status` succeeds): the link needs the model online,
+  so say first that this uploads `model.json` as a secret GitHub gist on their account, which
+  anyone with the link can open, and go ahead only if they agree. Then:
+
+  ```bash
+  gh gist create out/model.json --desc "Snapwright model: <title>"
+  ```
+
+  It prints `https://gist.github.com/<user>/<id>`. Give the user
+  `https://snapwright.eastham.ai/?gist=<id>` (add `&input=camera` to skip the start screen).
+  After a rebuild, update the same gist rather than making a new one, so the link keeps working:
+  `gh gist edit <id> -f model.json out/model.json`.
+- **Without `gh`, or with no network (the claude.ai sandbox):** don't upload anything. Tell the
+  user to open https://snapwright.eastham.ai, choose "Open your own build" and pick
+  `out/model.json` (or drag it onto the page). The file stays on their computer.
+
+Never upload a model the user asked to keep private, and don't install or sign in to `gh` for them.
+
 ## 5. Sideways panels (faces, signs, chest plates)
 
 When a flat face of the model carries a picture that needs finer vertical detail or a smooth
